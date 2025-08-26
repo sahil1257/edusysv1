@@ -5,7 +5,7 @@ import { showConfirmationModal } from './utils/helpers.js';
 import { initializeApp } from './main.js'; // <-- CORRECT: Import from main
 
 // The API base URL to use for the login request.
-const API_BASE_URL = 'https://edusysv1.vercel.app';
+const API_BASE_URL = 'https://edusyspro.vercel.app';
 
 /**
  * Hides the main app UI and shows the login page.
@@ -70,10 +70,11 @@ export async function handleLogin(e) {
  */
 export function handleLogout() {
     showConfirmationModal("Are you sure you want to log out?", () => {
+        // --- CRITICAL FIX ---
+        // Clear the current user data from memory and session storage.
         setCurrentUser(null);
         sessionStorage.removeItem('sms_user_pro');
-        // Redirect to the new login page instead of reloading
-        window.location.href = 'login.html';
+        // Reload the page to reset the application state and redirect to login.
+        window.location.reload();
     });
 }
-

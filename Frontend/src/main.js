@@ -33,24 +33,19 @@ export function setupGlobalEventListeners() {
 // Start the application
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Application starting...");
+    await store.initialize();
     const savedUser = sessionStorage.getItem('sms_user_pro');
-    
-    // **THIS IS THE CRITICAL CHANGE**
     if (savedUser) {
-        // If user data exists, initialize the main application
         try {
             setCurrentUser(JSON.parse(savedUser));
-            await store.initialize(); // Initialize store only when needed
             initializeApp();
-            setupGlobalEventListeners(); // Setup listeners for the main app
         } catch (e) {
-            console.error("Failed to parse saved user data.", e);
+            console.error("Failed to parse saved user.", e);
             sessionStorage.removeItem('sms_user_pro');
-            // If data is corrupt, redirect to login page
-            window.location.href = 'login.html';
+            showLoginPage();
         }
     } else {
-        // If no user data, redirect to the new login page
-        window.location.href = 'login.html';
+        showLoginPage();
     }
+    setupGlobalEventListeners();
 });
