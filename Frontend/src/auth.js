@@ -5,7 +5,7 @@ import { showConfirmationModal } from './utils/helpers.js';
 import { initializeApp } from './main.js'; // <-- CORRECT: Import from main
 
 // The API base URL to use for the login request.
-const API_BASE_URL = 'https://edusyspro.vercel.app';
+const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 /**
  * Hides the main app UI and shows the login page.
