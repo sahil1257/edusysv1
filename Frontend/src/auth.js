@@ -70,11 +70,10 @@ export async function handleLogin(e) {
  */
 export function handleLogout() {
     showConfirmationModal("Are you sure you want to log out?", () => {
-        // --- CRITICAL FIX ---
-        // Clear the current user data from memory and session storage.
         setCurrentUser(null);
         sessionStorage.removeItem('sms_user_pro');
-        // Reload the page to reset the application state and redirect to login.
-        window.location.reload();
+        // Redirect to the new login page instead of reloading
+        window.location.href = 'login.html';
     });
 }
+
