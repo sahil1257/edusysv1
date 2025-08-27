@@ -1,3 +1,9 @@
+// controllers/authController.js (Simplified - No Tokens)
+const asyncHandler = require('express-async-handler');
+const User = require('../models/user.model.js');
+const Student = require('../models/student.model.js');
+const Teacher = require('../models/teacher.model.js');
+
 const loginUser = asyncHandler(async (req, res) => {
     // 1. Get all three pieces of data from the frontend
     const { username, password, portal } = req.body;
@@ -65,3 +71,7 @@ const loginUser = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Invalid username or password.' });
     }
 });
+
+module.exports = {
+    loginUser,
+};
