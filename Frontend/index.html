@@ -487,7 +487,9 @@ audio {
     
     <script>
         
-            document.addEventListener('DOMContentLoaded', () => {
+    let selectedPortal = '';
+
+    document.addEventListener('DOMContentLoaded', () => {
         const portalSelection = document.getElementById('portal-selection');
         const loginFormContainer = document.getElementById('login-form-container');
         const backToPortalsBtn = document.getElementById('back-to-portals');
@@ -497,6 +499,9 @@ audio {
         portalButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const portalName = button.dataset.portal;
+                
+                // Store the selected portal name
+                selectedPortal = portalName;
                 
                 // Update the login form title
                 loginTitle.textContent = `${portalName} Login`;
@@ -512,7 +517,8 @@ audio {
             loginFormContainer.classList.add('hidden');
             portalSelection.classList.remove('hidden');
             
-            // Clear any previous error messages
+            // Clear the selected portal and any previous error messages
+            selectedPortal = '';
             document.getElementById('login-message').textContent = '';
         });
     });

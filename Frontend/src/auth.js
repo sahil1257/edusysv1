@@ -22,33 +22,28 @@ export async function handleLogin(e) {
     const password = e.target.password.value;
     ui.loginMessage.textContent = ''; // Clear any previous error messages
 
-    // --- References to the new success screen elements ---
     const loginFormContainer = document.getElementById('login-form-container');
     const loginSuccessMessage = document.getElementById('login-success-message');
     const successUsername = document.getElementById('success-username');
     
-    // --- THIS IS THE NEW CODE BLOCK FOR THE BUTTON ---
     const submitButton = e.target.querySelector('button[type="submit"]');
     if (submitButton) {
         submitButton.disabled = true;
-        submitButton.innerHTML = `
-            <i class="fas fa-spinner fa-spin mr-2"></i>
-            Signing In...
-        `;
+        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Signing In...`;
     }
-    // --- END OF NEW CODE BLOCK ---
 
     try {
         const response = await fetch(`${API_BASE_URL}/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            // --- THIS IS THE KEY MODIFICATION ---
+            // We now send the selectedPortal variable to the backend.
+            body: JSON.stringify({ username, password, portal: selectedPortal })
         });
 
         if (!response.ok) {
             ui.loginMessage.textContent = `Server error: ${response.status}`;
             console.error("Server responded with an error:", response);
-            // --- RESTORE BUTTON ON FAILURE ---
             if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.innerHTML = 'Sign In';
@@ -63,7 +58,6 @@ export async function handleLogin(e) {
             setCurrentUser(result.user);
             sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
 
-            // Logic for the success screen
             if (loginFormContainer) loginFormContainer.classList.add('hidden');
             if (loginSuccessMessage && successUsername) {
                 successUsername.textContent = result.user.name || result.user.username;
@@ -76,7 +70,6 @@ export async function handleLogin(e) {
 
         } else {
             ui.loginMessage.textContent = result.message || 'Invalid username or password.';
-            // --- RESTORE BUTTON ON FAILURE ---
             if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.innerHTML = 'Sign In';
@@ -85,7 +78,6 @@ export async function handleLogin(e) {
     } catch (error) {
         console.error("Login request failed:", error);
         ui.loginMessage.textContent = 'A critical error occurred. Check the console.';
-        // --- RESTORE BUTTON ON CRITICAL ERROR ---
         if (submitButton) {
             submitButton.disabled = false;
             submitButton.innerHTML = 'Sign In';
