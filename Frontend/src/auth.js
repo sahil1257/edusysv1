@@ -26,7 +26,17 @@ export async function handleLogin(e) {
     const loginFormContainer = document.getElementById('login-form-container');
     const loginSuccessMessage = document.getElementById('login-success-message');
     const successUsername = document.getElementById('success-username');
-    // --- End of new references ---
+    
+    // --- THIS IS THE NEW CODE BLOCK FOR THE BUTTON ---
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = `
+            <i class="fas fa-spinner fa-spin mr-2"></i>
+            Signing In...
+        `;
+    }
+    // --- END OF NEW CODE BLOCK ---
 
     try {
         const response = await fetch(`${API_BASE_URL}/`, {
@@ -38,6 +48,11 @@ export async function handleLogin(e) {
         if (!response.ok) {
             ui.loginMessage.textContent = `Server error: ${response.status}`;
             console.error("Server responded with an error:", response);
+            // --- RESTORE BUTTON ON FAILURE ---
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Sign In';
+            }
             return;
         }
 
@@ -48,28 +63,33 @@ export async function handleLogin(e) {
             setCurrentUser(result.user);
             sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
 
-            // --- THIS IS THE NEW LOGIC FOR THE SUCCESS SCREEN ---
-            // 1. Hide the login form
+            // Logic for the success screen
             if (loginFormContainer) loginFormContainer.classList.add('hidden');
-            
-            // 2. Show the success message and personalize it
             if (loginSuccessMessage && successUsername) {
                 successUsername.textContent = result.user.name || result.user.username;
                 loginSuccessMessage.classList.remove('hidden');
             }
 
-            // 3. Wait for 2 seconds before initializing the app
             setTimeout(() => {
                 initializeApp();
             }, 2000); 
-            // --- END OF NEW LOGIC ---
 
         } else {
             ui.loginMessage.textContent = result.message || 'Invalid username or password.';
+            // --- RESTORE BUTTON ON FAILURE ---
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Sign In';
+            }
         }
     } catch (error) {
         console.error("Login request failed:", error);
         ui.loginMessage.textContent = 'A critical error occurred. Check the console.';
+        // --- RESTORE BUTTON ON CRITICAL ERROR ---
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Sign In';
+        }
     }
 }
 
