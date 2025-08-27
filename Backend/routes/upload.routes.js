@@ -2,10 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const { upload, uploadImage } = require('../controllers/uploadController');
-const protect = require('../middleware/authMiddleware'); // Assuming you have auth middleware
 
-// This defines the endpoint: POST /api/upload
-// The 'upload.single('image')' part is multer middleware that looks for a file in a field named 'image'.
-router.post('/', protect, upload.single('image'), uploadImage);
+// The line requiring the missing 'authMiddleware.js' file has been removed.
+
+// The 'protect' variable has been removed from this line to prevent the crash.
+router.post('/', upload.single('image'), uploadImage);
 
 module.exports = router;
