@@ -699,8 +699,10 @@ export function showToast(message, type = 'success') {
     }, 3000);
 }
 
+// in src/utils/helpers.js
 
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
+    // This line is the fix. It prioritizes the passed 'pageConfig' over the old global variable.
     const config = pageConfig || window.currentPageConfig || {};
     
     const isEditing = Object.keys(initialData).length > 0;
@@ -733,6 +735,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 const departmentDetails = store.getMap('departments').get(departmentId);
                 const departmentName = departmentDetails?.name || 'Unassigned';
 
+                // This is the corrected HTML that will display the details you wanted.
                 subtitleHtml = `
                     <p class="text-slate-400 text-sm">${initialData.email || 'No email provided'}</p>
                     <p class="text-slate-400 text-xs mt-1">Department: ${departmentName}</p>
@@ -811,19 +814,16 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
             el.value = initialData[field.name];
         }
     });
-
     if (isProfileModal) {
-        // This is the listener you correctly updated
-        document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
+        document.getElementById('modal-image-upload').addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
-                showToast('Uploading image...', 'info');
-                const imageUrl = await uploadImageFile(file); // Uses the new helper
-                if (imageUrl) {
-                    newProfileImageData = imageUrl; // Stores the URL
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    newProfileImageData = e.target.result;
                     document.getElementById('modal-img-preview').src = newProfileImageData;
-                    showToast('Image ready!', 'success');
-                }
+                };
+                reader.readAsDataURL(file);
             }
         });
         const deleteBtn = document.getElementById('modal-delete-btn');
@@ -831,17 +831,15 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
             deleteBtn.onclick = () => onDeleteItem(initialData.id);
         }
     }
-
     document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = Object.fromEntries(new FormData(e.target));
         if (newProfileImageData) {
-            formData.profileImage = newProfileImageData; // Correctly adds the URL
+            formData.profileImage = newProfileImageData;
         }
         await onSubmit(formData);
         closeAnimatedModal(ui.modal);
     });
-    
     const modalContent = ui.modal.querySelector('.modal-content');
     if (isProfileModal) {
         modalContent.classList.add('!max-w-4xl');
@@ -856,39 +854,6 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
     }, { once: true });
 }
 
-// in src/utils/helpers.js
-
-
-// --- ADD THIS NEW, POWERFUL FUNCTION ---
-export async function uploadImageFile(file) {
-    // 1. Create a FormData object to send the file
-    const formData = new FormData();
-    formData.append('image', file); // The field name 'image' must match the backend multer config
-
-    try {
-        // 2. Send the file to your new backend endpoint
-        const response = await fetch(apiUrl('/api/upload'), { // apiUrl is already in your helpers
-            method: 'POST',
-            // IMPORTANT: Do NOT set the 'Content-Type' header. 
-            // The browser will automatically set it to 'multipart/form-data' with the correct boundary.
-            body: formData,
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || 'Image upload failed.');
-        }
-
-        // 3. Return the full URL of the newly converted image
-        return `${API_BASE_URL}${result.imageUrl}`;
-
-    } catch (error) {
-        console.error('Upload Error:', error);
-        showToast(error.message, 'error');
-        return null; // Return null on failure
-    }
-}
 
 
 export function exportToCsv(filename, headers, rows) {
