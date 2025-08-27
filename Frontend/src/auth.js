@@ -2,7 +2,7 @@
 
 import { ui, currentUser, setCurrentUser } from './ui.js';
 import { showConfirmationModal } from './utils/helpers.js';
-import { initializeApp } from './main.js'; // <-- CORRECT: Import from main
+import { initializeApp } from './main.js';
 
 // The API base URL to use for the login request.
 const API_BASE_URL = 'https://edusysv1.vercel.app';
@@ -26,6 +26,12 @@ export async function handleLogin(e) {
     const password = e.target.password.value;
     ui.loginMessage.textContent = ''; // Clear any previous error messages
 
+    // Add a loading state to the submit button
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Signing In...';
+
+
     try {
         const response = await fetch(`${API_BASE_URL}/`, {
             method: 'POST',
@@ -33,34 +39,53 @@ export async function handleLogin(e) {
             body: JSON.stringify({ username, password })
         });
 
-        // First, check if the response is okay at a network level
         if (!response.ok) {
-            // This will show "Server error: 500" for a crash or a network issue.
             ui.loginMessage.textContent = `Server error: ${response.status}`;
             console.error("Server responded with an error:", response);
+            // Restore button on failure
+            submitButton.disabled = false;
+            submitButton.textContent = 'Sign In';
             return;
         }
 
-        // Get the raw text of the response
         const responseText = await response.text();
-        
-        // Try to parse it, and handle the case where the response body is empty.
         const result = responseText ? JSON.parse(responseText) : {};
 
         if (result.success) {
-            // Set the current user globally and in session storage.
-            setCurrentUser(result.user);
-            sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
-            // Initialize the main application after successful login.
-            initializeApp();
+            // --- NEW: SUCCESS SCREEN LOGIC ---
+            const loginRightPanel = document.getElementById('login-right-panel');
+            if (loginRightPanel) {
+                // Use the user's name if available, otherwise fall back to their email/username
+                const displayName = result.user.name || result.user.email || username;
+
+                loginRightPanel.innerHTML = `
+                    <div class="view-content text-center p-8 flex flex-col justify-center items-center h-full">
+                        <h2 class="text-2xl font-bold text-white mb-4">Welcome, ${displayName}!</h2>
+                        <p class="text-slate-400">You have been logged in successfully.</p>
+                        <p class="text-slate-500 mt-2 animate-pulse">Redirecting to your dashboard...</p>
+                    </div>
+                `;
+            }
+
+            // Set a timeout before initializing the app
+            setTimeout(() => {
+                setCurrentUser(result.user);
+                sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
+                initializeApp();
+            }, 2500); // 2.5-second delay to show the message
+
         } else {
-            // Display a specific error message from the server or a default one.
             ui.loginMessage.textContent = result.message || 'Invalid username or password.';
+            // Restore button on failure
+            submitButton.disabled = false;
+            submitButton.textContent = 'Sign In';
         }
     } catch (error) {
-        // Handle any network-related errors, such as the server being down.
         console.error("Login request failed:", error);
         ui.loginMessage.textContent = 'A critical error occurred. Check the console.';
+        // Restore button on failure
+        submitButton.disabled = false;
+        submitButton.textContent = 'Sign In';
     }
 }
 
@@ -70,11 +95,8 @@ export async function handleLogin(e) {
  */
 export function handleLogout() {
     showConfirmationModal("Are you sure you want to log out?", () => {
-        // --- CRITICAL FIX ---
-        // Clear the current user data from memory and session storage.
         setCurrentUser(null);
         sessionStorage.removeItem('sms_user_pro');
-        // Reload the page to reset the application state and redirect to login.
         window.location.reload();
     });
 }
