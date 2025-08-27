@@ -12,8 +12,7 @@ connectDB();
 const app = express();
 
 // Middleware
-app.use(cors()); // Enable Cross-Origin Resource Sharing
-app.use(express.json({ limit: '50mb' })); // To parse JSON request bodies
+app.use(cors({ origin: '*' })); // Allow all origins for developmentapp.use(express.json({ limit: '50mb' })); // To parse JSON request bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // To parse URL-encoded bodies
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'EduSys Pro API is online and running.Thanks For visiting......' });

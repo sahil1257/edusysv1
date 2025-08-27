@@ -699,10 +699,8 @@ export function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// in src/utils/helpers.js
 
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
-    // This line is the fix. It prioritizes the passed 'pageConfig' over the old global variable.
     const config = pageConfig || window.currentPageConfig || {};
     
     const isEditing = Object.keys(initialData).length > 0;
@@ -735,7 +733,6 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 const departmentDetails = store.getMap('departments').get(departmentId);
                 const departmentName = departmentDetails?.name || 'Unassigned';
 
-                // This is the corrected HTML that will display the details you wanted.
                 subtitleHtml = `
                     <p class="text-slate-400 text-sm">${initialData.email || 'No email provided'}</p>
                     <p class="text-slate-400 text-xs mt-1">Department: ${departmentName}</p>
@@ -814,37 +811,37 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
             el.value = initialData[field.name];
         }
     });
-  if (isProfileModal) {
-    // FIND THIS: document.getElementById('modal-image-upload').addEventListener('change', ...
-    document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            // --- THIS IS THE NEW LOGIC ---
-            showToast('Uploading image...', 'info');
-            const imageUrl = await uploadImageFile(file);
-            if (imageUrl) {
-                newProfileImageData = imageUrl; // Store the URL instead of Base64
-                document.getElementById('modal-img-preview').src = newProfileImageData;
-                showToast('Image ready!', 'success');
-            }
-            // --- END OF NEW LOGIC ---
-        }
-    });
 
+    if (isProfileModal) {
+        // This is the listener you correctly updated
+        document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                showToast('Uploading image...', 'info');
+                const imageUrl = await uploadImageFile(file); // Uses the new helper
+                if (imageUrl) {
+                    newProfileImageData = imageUrl; // Stores the URL
+                    document.getElementById('modal-img-preview').src = newProfileImageData;
+                    showToast('Image ready!', 'success');
+                }
+            }
+        });
         const deleteBtn = document.getElementById('modal-delete-btn');
         if (deleteBtn && onDeleteItem) {
             deleteBtn.onclick = () => onDeleteItem(initialData.id);
         }
     }
+
     document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = Object.fromEntries(new FormData(e.target));
         if (newProfileImageData) {
-            formData.profileImage = newProfileImageData;
+            formData.profileImage = newProfileImageData; // Correctly adds the URL
         }
         await onSubmit(formData);
         closeAnimatedModal(ui.modal);
     });
+    
     const modalContent = ui.modal.querySelector('.modal-content');
     if (isProfileModal) {
         modalContent.classList.add('!max-w-4xl');
