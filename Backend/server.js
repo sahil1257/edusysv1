@@ -22,7 +22,8 @@ app.get('/', (req, res) => {
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
+const uploadRoutes = require('./routes/upload.routes.js');
+app.use('/api/upload', uploadRoutes);
 // --- API ROUTES ---
 app.use('/', require('./routes/auth.routes')); 
 app.use('/users', require('./routes/user.routes'));
@@ -40,6 +41,7 @@ app.use('/results', require('./routes/result.routes'));
 app.use('/attendance', require('./routes/attendance.routes'));
 app.use('/library', require('./routes/library.routes'));
 app.use('/transport', require('./routes/transport.routes'));
+app.use('/uploads/images', express.static(path.join(__dirname, 'uploads/images')));
 
 // --- Error Handling Middleware ---
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');

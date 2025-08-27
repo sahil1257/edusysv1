@@ -854,6 +854,39 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
     }, { once: true });
 }
 
+// in src/utils/helpers.js
+
+
+// --- ADD THIS NEW, POWERFUL FUNCTION ---
+export async function uploadImageFile(file) {
+    // 1. Create a FormData object to send the file
+    const formData = new FormData();
+    formData.append('image', file); // The field name 'image' must match the backend multer config
+
+    try {
+        // 2. Send the file to your new backend endpoint
+        const response = await fetch(apiUrl('/api/upload'), { // apiUrl is already in your helpers
+            method: 'POST',
+            // IMPORTANT: Do NOT set the 'Content-Type' header. 
+            // The browser will automatically set it to 'multipart/form-data' with the correct boundary.
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Image upload failed.');
+        }
+
+        // 3. Return the full URL of the newly converted image
+        return `${API_BASE_URL}${result.imageUrl}`;
+
+    } catch (error) {
+        console.error('Upload Error:', error);
+        showToast(error.message, 'error');
+        return null; // Return null on failure
+    }
+}
 
 
 export function exportToCsv(filename, headers, rows) {
