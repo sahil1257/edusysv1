@@ -35,25 +35,16 @@ export async function handleLogin(e) {
         const response = await fetch(`${API_BASE_URL}/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // --- THIS IS THE KEY MODIFICATION ---
-            // We now send the selectedPortal variable to the backend.
             body: JSON.stringify({ username, password, portal: selectedPortal })
         });
 
-        if (!response.ok) {
-            ui.loginMessage.textContent = `Server error: ${response.status}`;
-            console.error("Server responded with an error:", response);
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = 'Sign In';
-            }
-            return;
-        }
-
+        
         const responseText = await response.text();
         const result = responseText ? JSON.parse(responseText) : {};
 
+       
         if (result.success) {
+            // --- SUCCESS PATH (No changes here) ---
             setCurrentUser(result.user);
             sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
 
@@ -68,13 +59,16 @@ export async function handleLogin(e) {
             }, 2000); 
 
         } else {
-            ui.loginMessage.textContent = result.message || 'Invalid username or password.';
+           
+            ui.loginMessage.textContent = result.message || `Server error: ${response.status}`;
+            
             if (submitButton) {
                 submitButton.disabled = false;
                 submitButton.innerHTML = 'Sign In';
             }
         }
     } catch (error) {
+        // --- CATCH BLOCK (For network errors, etc.) ---
         console.error("Login request failed:", error);
         ui.loginMessage.textContent = 'A critical error occurred. Check the console.';
         if (submitButton) {
