@@ -1,6 +1,6 @@
 // routes/upload.routes.js
 const express = require('express');
-const { uploadProfileImage, uploadMiddleware } = require('../controllers/uploadController');
+const { uploadProfileImage, uploadMiddleware } = require('../controllers/uploadController.js');
 const router = express.Router();
 
 // Route: POST /api/upload/profile
