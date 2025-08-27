@@ -593,3 +593,25 @@
     .sidebar-link .fa-receipt { /* Expenses */
         color: #f59e0b; /* amber-500 */
     }
+    /* --- ADD THIS NEW CSS FOR VIBRANT PORTAL ICONS --- */
+    .portal-btn .fa-user-shield { /* Administration */
+        color: #3894df; /* violet-400 */
+    }
+    .portal-btn .fa-chalkboard-teacher { /* Teacher */
+        color: #facc15; /* yellow-400 */
+    }
+    .portal-btn .fa-user-graduate { /* Student */
+        color: #4ade80; /* green-400 */
+    }
+    .portal-btn .fa-file-invoice-dollar { /* Accountant */
+        color: #d37334; /* emerald-400 */
+    }
+    .portal-btn .fa-book-reader { /* Librarian */
+        color: #e879f9; /* fuchsia-400 */
+    }
+
+    /* Keep the icon color white on hover to match the text */
+    .portal-btn:hover i {
+        color: #ffffff;
+    }
+    /* --- END OF NEW CSS --- */
