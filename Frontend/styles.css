@@ -537,3 +537,59 @@
     font-size: 0.875rem; /* 14px */
 }
 /* --- END OF NEW CSS --- */
+ .sidebar-link .fa-tachometer-alt,
+    .sidebar-link .fa-clock { /* Dashboard & Timetable */
+        color: #38bdf8; /* sky-400 */
+    }
+    .sidebar-link .fa-user-graduate { /* Students */
+        color: #4ade80; /* green-400 */
+    }
+    .sidebar-link .fa-chalkboard-teacher,
+    .sidebar-link .fa-chalkboard-user { /* Teachers */
+        color: #facc15; /* yellow-400 */
+    }
+    .sidebar-link .fa-users-cog,
+    .sidebar-link .fa-users { /* Staff Management */
+        color: #2dd4bf; /* teal-400 */
+    }
+    .sidebar-link .fa-sitemap,
+    .sidebar-link .fa-building { /* Academic Structure / Departments */
+        color: #a78bfa; /* violet-400 */
+    }
+    .sidebar-link .fa-calendar-alt { /* Timetable / Calendar */
+        color: #fb923c; /* orange-400 */
+    }
+    .sidebar-link .fa-file-export,
+    .sidebar-link .fa-file-invoice-dollar { /* Financial Reports / Fees */
+        color: #34d399; /* emerald-400 */
+    }
+    .sidebar-link .fa-bullhorn { /* Notice Board */
+        color: #f87171; /* red-400 */
+    }
+    .sidebar-link .fa-book-open-reader,
+    .sidebar-link .fa-book-reader,
+    .sidebar-link .fa-book-open { /* Library */
+        color: #e879f9; /* fuchsia-400 */
+    }
+    .sidebar-link .fa-bus,
+    .sidebar-link .fa-school-flag { /* Transport / Classes */
+        color: #60a5fa; /* blue-400 */
+    }
+    .sidebar-link .fa-user-circle { /* Profile */
+        color: #48dbcf; /* slate-400 */
+    }
+    .sidebar-link .fa-calendar-check { /* Attendance / Exams */
+        color: #f472b6; /* pink-400 */
+    }
+    .sidebar-link .fa-file-signature { /* Exams */
+        color: #c084fc; /* purple-400 */
+    }
+    .sidebar-link .fa-chart-pie { /* Accountant Dashboard */
+        color: #818cf8; /* indigo-400 */
+    }
+     .sidebar-link .fa-money-check-alt { /* Salary */
+        color: #22c55e; /* green-500 */
+    }
+    .sidebar-link .fa-receipt { /* Expenses */
+        color: #f59e0b; /* amber-500 */
+    }
