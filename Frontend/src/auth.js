@@ -22,6 +22,12 @@ export async function handleLogin(e) {
     const password = e.target.password.value;
     ui.loginMessage.textContent = ''; // Clear any previous error messages
 
+    // --- References to the new success screen elements ---
+    const loginFormContainer = document.getElementById('login-form-container');
+    const loginSuccessMessage = document.getElementById('login-success-message');
+    const successUsername = document.getElementById('success-username');
+    // --- End of new references ---
+
     try {
         const response = await fetch(`${API_BASE_URL}/`, {
             method: 'POST',
@@ -29,32 +35,39 @@ export async function handleLogin(e) {
             body: JSON.stringify({ username, password })
         });
 
-        // First, check if the response is okay at a network level
         if (!response.ok) {
-            // This will show "Server error: 500" for a crash or a network issue.
             ui.loginMessage.textContent = `Server error: ${response.status}`;
             console.error("Server responded with an error:", response);
             return;
         }
 
-        // Get the raw text of the response
         const responseText = await response.text();
-        
-        // Try to parse it, and handle the case where the response body is empty.
         const result = responseText ? JSON.parse(responseText) : {};
 
         if (result.success) {
-            // Set the current user globally and in session storage.
             setCurrentUser(result.user);
             sessionStorage.setItem('sms_user_pro', JSON.stringify(result.user));
-            // Initialize the main application after successful login.
-            initializeApp();
+
+            // --- THIS IS THE NEW LOGIC FOR THE SUCCESS SCREEN ---
+            // 1. Hide the login form
+            if (loginFormContainer) loginFormContainer.classList.add('hidden');
+            
+            // 2. Show the success message and personalize it
+            if (loginSuccessMessage && successUsername) {
+                successUsername.textContent = result.user.name || result.user.username;
+                loginSuccessMessage.classList.remove('hidden');
+            }
+
+            // 3. Wait for 2 seconds before initializing the app
+            setTimeout(() => {
+                initializeApp();
+            }, 2000); 
+            // --- END OF NEW LOGIC ---
+
         } else {
-            // Display a specific error message from the server or a default one.
             ui.loginMessage.textContent = result.message || 'Invalid username or password.';
         }
     } catch (error) {
-        // Handle any network-related errors, such as the server being down.
         console.error("Login request failed:", error);
         ui.loginMessage.textContent = 'A critical error occurred. Check the console.';
     }

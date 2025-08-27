@@ -503,3 +503,37 @@
     font-size: 0.875rem;
     color: #94a3b8;
 }
+
+/* --- ADD THIS NEW CSS FOR PORTAL BUTTONS --- */
+.portal-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem; /* 12px */
+    padding: 1.5rem 1rem; /* 24px 16px */
+    background-color: rgba(30, 41, 59, 0.6); /* slate-800 with transparency */
+    border: 1px solid #334155; /* slate-700 */
+    border-radius: 0.75rem; /* 12px */
+    color: #cbd5e1; /* slate-300 */
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.portal-btn:hover {
+    background-color: #334155; /* slate-700 */
+    border-color: #38bdf8; /* sky-400 */
+    color: #ffffff;
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(56, 189, 248, 0.1), 0 4px 6px -4px rgba(56, 189, 248, 0.1);
+}
+
+.portal-btn i {
+    font-size: 1.5rem; /* 24px */
+}
+
+.portal-btn span {
+    font-size: 0.875rem; /* 14px */
+}
+/* --- END OF NEW CSS --- */
