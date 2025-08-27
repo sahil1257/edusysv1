@@ -4,7 +4,6 @@ import { ui, currentUser, setCurrentUser } from './ui.js';
 import { showConfirmationModal } from './utils/helpers.js';
 import { initializeApp } from './main.js';
 
-// The API base URL to use for the login request.
 const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 /**

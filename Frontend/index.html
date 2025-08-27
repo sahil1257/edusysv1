@@ -500,13 +500,10 @@ audio {
             button.addEventListener('click', () => {
                 const portalName = button.dataset.portal;
                 
-                // Store the selected portal name
                 selectedPortal = portalName;
                 
-                // Update the login form title
                 loginTitle.textContent = `${portalName} Login`;
                 
-                // Switch views
                 portalSelection.classList.add('hidden');
                 loginFormContainer.classList.remove('hidden');
             });
