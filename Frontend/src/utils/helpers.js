@@ -814,18 +814,23 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
             el.value = initialData[field.name];
         }
     });
-    if (isProfileModal) {
-        document.getElementById('modal-image-upload').addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    newProfileImageData = e.target.result;
-                    document.getElementById('modal-img-preview').src = newProfileImageData;
-                };
-                reader.readAsDataURL(file);
+  if (isProfileModal) {
+    // FIND THIS: document.getElementById('modal-image-upload').addEventListener('change', ...
+    document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            // --- THIS IS THE NEW LOGIC ---
+            showToast('Uploading image...', 'info');
+            const imageUrl = await uploadImageFile(file);
+            if (imageUrl) {
+                newProfileImageData = imageUrl; // Store the URL instead of Base64
+                document.getElementById('modal-img-preview').src = newProfileImageData;
+                showToast('Image ready!', 'success');
             }
-        });
+            // --- END OF NEW LOGIC ---
+        }
+    });
+
         const deleteBtn = document.getElementById('modal-delete-btn');
         if (deleteBtn && onDeleteItem) {
             deleteBtn.onclick = () => onDeleteItem(initialData.id);
