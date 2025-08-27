@@ -40,7 +40,6 @@ app.use('/results', require('./routes/result.routes'));
 app.use('/attendance', require('./routes/attendance.routes'));
 app.use('/library', require('./routes/library.routes'));
 app.use('/transport', require('./routes/transport.routes'));
-app.use('/upload', require('./routes/upload.routes.js'));
 
 // --- Error Handling Middleware ---
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');

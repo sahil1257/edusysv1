@@ -218,33 +218,12 @@ export const apiService = (() => {
             return []; // Return empty array on error
         }
     };
-        const uploadProfileImage = async (formData) => {
-        try {
-            // We do NOT set the 'Content-Type' header. The browser does this automatically
-            // for FormData, which is required for file uploads to work.
-            const response = await fetch(`${API_BASE_URL}/api/upload/profile`, {
-                method: 'POST',
-                body: formData, // The body is the FormData object itself
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Image upload failed on the server.');
-            }
-            return await response.json(); // Returns { success: true, imageUrl: '/uploads/...' }
-        } catch (error) {
-            console.error('API Service: Failed to upload image:', error);
-            showToast(error.message || 'A network error occurred during upload.', 'error');
-            return null;
-        }
-    };
-
 
 
     return {
         init, save, get, create, bulkCreate, bulkRemove, getAttendanceReport,
         update, remove, getAttendance, saveAttendance,
         getResultsForExam, saveResults, reset, processSalaries,
-        reactToNotice,uploadProfileImage // <-- EXPORT THE NEW FUNCTION
+        reactToNotice // <-- EXPORT THE NEW FUNCTION
     };
 })();
