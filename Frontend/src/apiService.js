@@ -1,7 +1,7 @@
 // in frontend/src/apiService.js
 
 import { showToast } from './utils/helpers.js';
-import { currentUser } from './ui.js'; 
+import { currentUser } from './ui.js'; // <-- ADD THIS IMPORT
 
 
 export const apiService = (() => {
@@ -13,10 +13,6 @@ export const apiService = (() => {
     const getBaseUrlForCollection = (collection) => {
         if (financialCollections.has(collection)) {
             return `${API_BASE_URL}/financial/${collection}`;
-        }
-        // This is the fix for the new upload route.
-        if (collection === 'upload') {
-            return `${API_BASE_URL}/api/upload`;
         }
         return `${API_BASE_URL}/${collection}`;
     };
@@ -222,18 +218,11 @@ export const apiService = (() => {
             return []; // Return empty array on error
         }
     };
-    
-    // --- ADD THIS ENTIRE NEW FUNCTION FOR IMAGE UPLOADING ---
-    const uploadProfileImage = async (formData) => {
+        const uploadProfileImage = async (formData) => {
         try {
-            // We use the 'upload' collection name which our getBaseUrlForCollection function will map to '/api/upload'.
-            const url = `${getBaseUrlForCollection('upload')}/profile`;
-
-            // IMPORTANT: We DO NOT set the 'Content-Type' header here.
-            // The browser will automatically set it to 'multipart/form-data'
-            // and include the necessary boundaries for the file upload.
-            // Manually setting it will break the upload.
-            const response = await fetch(url, {
+            // We do NOT set the 'Content-Type' header. The browser does this automatically
+            // for FormData, which is required for file uploads to work.
+            const response = await fetch(`${API_BASE_URL}/api/upload/profile`, {
                 method: 'POST',
                 body: formData, // The body is the FormData object itself
             });
@@ -250,11 +239,12 @@ export const apiService = (() => {
         }
     };
 
+
+
     return {
         init, save, get, create, bulkCreate, bulkRemove, getAttendanceReport,
         update, remove, getAttendance, saveAttendance,
         getResultsForExam, saveResults, reset, processSalaries,
-        reactToNotice,
-        uploadProfileImage // <-- EXPORT THE NEW FUNCTION
+        reactToNotice,uploadProfileImage // <-- EXPORT THE NEW FUNCTION
     };
 })();
