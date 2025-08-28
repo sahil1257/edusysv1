@@ -14,6 +14,117 @@ const API_BASE_URL = 'https://edusysv1.vercel.app';
 // Safely compose URLs (ensures single slash between base and path)
 const apiUrl = (path) => `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
+function isHeicFile(file) {
+    const name = (file?.name || '').toLowerCase();
+    const type = (file?.type || '').toLowerCase();
+    return type.includes('image/heic') || type.includes('image/heif') || name.endsWith('.heic') || name.endsWith('.heif');
+}
+
+function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+        if ([...document.scripts].some(s => s.src === src)) return resolve();
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error(`Failed to load script ${src}`));
+        document.head.appendChild(s);
+    });
+}
+
+async function ensureHeic2AnyLoaded() {
+    if (window.heic2any) return window.heic2any;
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+    if (!window.heic2any) throw new Error('heic2any failed to load');
+    return window.heic2any;
+}
+
+function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
+}
+
+function getScaledSize(w, h, maxW, maxH) {
+    const ratio = Math.min(maxW / w, maxH / h, 1);
+    return { width: Math.round(w * ratio), height: Math.round(h * ratio) };
+}
+
+async function decodeBlobToRenderable(blob) {
+    if (window.createImageBitmap) {
+        try {
+            const bmp = await createImageBitmap(blob);
+            return { img: bmp, width: bmp.width, height: bmp.height, isBitmap: true };
+        } catch (_) { /* fallback below */ }
+    }
+    return await new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve({ img, width: img.naturalWidth || img.width, height: img.naturalHeight || img.height, isBitmap: false });
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to decode image'));
+        };
+        img.src = url;
+    });
+}
+
+/**
+ * Converts HEIC/HEIF to JPEG if needed, then resizes and compresses any image.
+ * Returns { blob, dataUrl } where dataUrl is a base64 Data URL that fits your existing JSON flow.
+ */
+export async function compressAndNormalizeImage(file, {
+    maxWidth = 800,
+    maxHeight = 800,
+    quality = 0.8,
+    outputType = 'image/jpeg'
+} = {}) {
+    let workingBlob = file;
+
+    if (isHeicFile(file)) {
+        const heic2any = await ensureHeic2AnyLoaded();
+        workingBlob = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality
+        });
+    }
+
+    const { img, width: w, height: h } = await decodeBlobToRenderable(workingBlob);
+    const { width, height } = getScaledSize(w, h, maxWidth, maxHeight);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const outBlob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, quality));
+    if (!outBlob) throw new Error('Image encoding failed');
+
+    const dataUrl = await blobToDataURL(outBlob);
+    return { blob: outBlob, dataUrl };
+}
+
+// Helper for safe base64 encoding with unicode (fix names like “José” in SVG)
+function base64EncodeUnicode(str) {
+    try {
+        return btoa(unescape(encodeURIComponent(str)));
+    } catch {
+        return btoa(str); // fallback; may fail for some unicode, but try
+    }
+}
+
+// ----------------------------------------------------------------------
+
 export function getSkeletonLoaderHTML(type = 'table') {
     if (type === 'dashboard') {
         return `
@@ -139,11 +250,8 @@ export async function openAdvancedMessageModal(replyToUserId = null, replyToUser
             type: isPrivate ? 'private_message' : 'notice'
         };
 
-        // --- THIS IS THE FIX ---
-        // The manual fetch call with the wrong URL has been replaced.
-        // We now use the centralized apiService, which constructs the correct URL.
+        // Use centralized apiService
         const result = await apiService.create('notices', noticeData);
-        // --- END OF FIX ---
 
         if (!result) return;
 
@@ -163,7 +271,10 @@ export async function openAdvancedMessageModal(replyToUserId = null, replyToUser
 }
 
 export function timeAgo(dateString) {
+    if (!dateString) return 'just now';
     const date = new Date(dateString);
+    if (isNaN(date)) return 'just now';
+
     const now = new Date();
     const seconds = Math.floor((now - date) / 1000);
 
@@ -186,19 +297,23 @@ export function timeAgo(dateString) {
 }
 
 export function getFileIcon(fileType) {
-    if (fileType.includes('image')) return 'fa-file-image';
-    if (fileType.includes('pdf')) return 'fa-file-pdf';
-    if (fileType.includes('word')) return 'fa-file-word';
-    if (fileType.includes('excel')) return 'fa-file-excel';
-    if (fileType.includes('powerpoint')) return 'fa-file-powerpoint';
-    if (fileType.includes('zip')) return 'fa-file-archive';
+    if (!fileType) return 'fa-file';
+    const t = fileType.toLowerCase();
+    if (t.includes('image')) return 'fa-file-image';
+    if (t.includes('pdf')) return 'fa-file-pdf';
+    if (t.includes('word') || t.includes('msword') || t.includes('officedocument.wordprocessingml')) return 'fa-file-word';
+    if (t.includes('excel') || t.includes('spreadsheet') || t.includes('officedocument.spreadsheetml')) return 'fa-file-excel';
+    if (t.includes('powerpoint') || t.includes('presentation') || t.includes('officedocument.presentationml')) return 'fa-file-powerpoint';
+    if (t.includes('zip') || t.includes('compressed')) return 'fa-file-archive';
     return 'fa-file';
 }
 
 export function createNoticeCard(notice, authorName) {
     let audienceText, borderColorClass;
     const isPrivateMessage = notice.type === 'private_message';
-    const allUsersMap = new Map([...store.getMap('students'), ...store.getMap('teachers')]);
+    const studentsMap = store.getMap('students') || new Map();
+    const teachersMap = store.getMap('teachers') || new Map();
+    const allUsersMap = new Map([...studentsMap, ...teachersMap]);
 
     if (isPrivateMessage) {
         const recipientName = allUsersMap.get(notice.target)?.name || 'a specific user';
@@ -214,7 +329,8 @@ export function createNoticeCard(notice, authorName) {
         audienceText = 'For: All Teachers';
         borderColorClass = 'border-yellow-500';
     } else if (notice.target.startsWith('class_')) {
-        const className = store.getMap('classes').get(notice.target.split('_')[1])?.name || 'a Specific Class';
+        const classMap = store.getMap('classes') || new Map();
+        const className = classMap.get(notice.target.split('_')[1])?.name || 'a Specific Class';
         audienceText = `For: ${className}`;
         borderColorClass = 'border-red-500';
     } else {
@@ -224,7 +340,7 @@ export function createNoticeCard(notice, authorName) {
 
     let actionButtonsHtml = '';
     if (currentUser.role === 'Teacher' && isPrivateMessage && notice.authorId !== currentUser.id) {
-        const authorIsStudent = store.getMap('students').has(notice.authorId);
+        const authorIsStudent = (store.getMap('students') || new Map()).has(notice.authorId);
         if (authorIsStudent) {
             actionButtonsHtml += `<button class="text-blue-400 hover:text-blue-300 reply-btn p-1" title="Reply" data-author-id="${notice.authorId}" data-author-name="${authorName}"><i class="fas fa-reply fa-fw"></i></button>`;
         }
@@ -284,7 +400,8 @@ export async function handleVoiceRecording(sendMessageCallback) {
         let seconds = 0;
         const timerInterval = setInterval(() => {
             seconds++;
-            document.getElementById('record-timer').textContent = `${seconds}s`;
+            const timerEl = document.getElementById('record-timer');
+            if (timerEl) timerEl.textContent = `${seconds}s`;
         }, 1000);
 
         mediaRecorder.ondataavailable = event => {
@@ -304,9 +421,8 @@ export async function handleVoiceRecording(sendMessageCallback) {
             reader.readAsDataURL(audioBlob);
         };
 
-        document.getElementById('stop-record-btn').onclick = () => {
-            mediaRecorder.stop();
-        };
+        const stopBtn = document.getElementById('stop-record-btn');
+        if (stopBtn) stopBtn.onclick = () => mediaRecorder.stop();
 
         mediaRecorder.start();
 
@@ -330,6 +446,7 @@ export async function fetchWithErrorHandling(url, options = {}) {
 export async function handleFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
+    if (!btn) return;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     // ...submit logic...
@@ -339,6 +456,7 @@ export async function handleFormSubmit(e) {
 
 export function renderLargeList(items, containerId) {
     const container = document.getElementById(containerId);
+    if (!container) return;
     let i = 0;
     function renderChunk() {
         const chunk = items.slice(i, i + 50).map(item => `<div>${item.name}</div>`).join('');
@@ -395,93 +513,108 @@ export function openBulkInsertModal(collectionName, title, requiredFields, examp
     const feedbackDiv = document.getElementById('bulk-feedback');
     let parsedData = [];
 
-    fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) {
-            processBtn.disabled = true;
-            return;
-        }
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                if (processBtn) processBtn.disabled = true;
+                return;
+            }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const content = event.target.result;
-                if (file.name.endsWith('.json')) {
-                    parsedData = JSON.parse(content);
-                } else if (file.name.endsWith('.csv')) {
-                    // Simple CSV parser
-                    const lines = content.trim().split('\n');
-                    const headers = lines[0].split(',').map(h => h.trim());
-                    parsedData = lines.slice(1).map(line => {
-                        const values = line.split(',').map(v => v.trim());
-                        return headers.reduce((obj, header, index) => {
-                            obj[header] = values[index];
-                            return obj;
-                        }, {});
-                    });
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const content = event.target.result;
+                    if (file.name.endsWith('.json')) {
+                        parsedData = JSON.parse(content);
+                    } else if (file.name.endsWith('.csv')) {
+                        // Simple CSV parser
+                        const lines = content.trim().split('\n');
+                        const headers = lines[0].split(',').map(h => h.trim());
+                        parsedData = lines.slice(1).map(line => {
+                            const values = line.split(',').map(v => v.trim());
+                            return headers.reduce((obj, header, index) => {
+                                obj[header] = values[index];
+                                return obj;
+                            }, {});
+                        });
+                    }
+                    if (!Array.isArray(parsedData)) throw new Error('File content must be an array of objects.');
+                    if (feedbackDiv) {
+                        feedbackDiv.innerHTML = `<span class="text-green-400">${parsedData.length} records found in file. Ready to process.</span>`;
+                        feedbackDiv.classList.remove('hidden');
+                    }
+                    if (processBtn) processBtn.disabled = false;
+                } catch (err) {
+                    if (feedbackDiv) {
+                        feedbackDiv.innerHTML = `<span class="text-red-400">Error parsing file: ${err.message}</span>`;
+                        feedbackDiv.classList.remove('hidden');
+                    }
+                    if (processBtn) processBtn.disabled = true;
                 }
-                if (!Array.isArray(parsedData)) throw new Error('File content must be an array of objects.');
-                feedbackDiv.innerHTML = `<span class="text-green-400">${parsedData.length} records found in file. Ready to process.</span>`;
-                feedbackDiv.classList.remove('hidden');
-                processBtn.disabled = false;
-            } catch (err) {
-                feedbackDiv.innerHTML = `<span class="text-red-400">Error parsing file: ${err.message}</span>`;
-                feedbackDiv.classList.remove('hidden');
-                processBtn.disabled = true;
-            }
+            };
+            reader.readAsText(file);
         };
-        reader.readAsText(file);
-    };
+    }
 
-    processBtn.onclick = async () => {
-        processBtn.disabled = true;
-        processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    if (processBtn) {
+        processBtn.onclick = async () => {
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
-        const validRecords = [];
-        const invalidRecords = [];
-        for (const record of parsedData) {
-            const hasAllRequiredFields = requiredFields.every(field => record[field] !== undefined && record[field] !== '');
-            if (hasAllRequiredFields) {
-                validRecords.push(record);
-            } else {
-                invalidRecords.push(record);
+            const validRecords = [];
+            const invalidRecords = [];
+            for (const record of parsedData) {
+                const hasAllRequiredFields = requiredFields.every(field => record[field] !== undefined && record[field] !== '');
+                if (hasAllRequiredFields) {
+                    validRecords.push(record);
+                } else {
+                    invalidRecords.push(record);
+                }
             }
-        }
 
-        if (invalidRecords.length > 0) {
-            showToast(`${invalidRecords.length} records are missing required fields and were skipped.`, 'error');
-        }
+            if (invalidRecords.length > 0) {
+                showToast(`${invalidRecords.length} records are missing required fields and were skipped.`, 'error');
+            }
 
-        if (validRecords.length === 0) {
-            processBtn.innerHTML = 'Process File';
-            feedbackDiv.innerHTML = `<span class="text-red-400">No valid records to import. Please check your file.</span>`;
-            return;
-        }
+            if (validRecords.length === 0) {
+                processBtn.innerHTML = 'Process File';
+                if (feedbackDiv) {
+                    feedbackDiv.innerHTML = `<span class="text-red-400">No valid records to import. Please check your file.</span>`;
+                }
+                processBtn.disabled = false;
+                return;
+            }
 
-        // POST to your hosted API (bulk insert)
-        const result = await fetchWithErrorHandling(apiUrl(`/api/${collectionName}/bulk`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(validRecords)
-        });
+            // POST to your hosted API (bulk insert)
+            const result = await fetchWithErrorHandling(apiUrl(`/api/${collectionName}/bulk`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(validRecords)
+            });
 
-        if (result && result.success) {
-            feedbackDiv.innerHTML = `
-                <p class="text-green-400 font-bold">Import Complete!</p>
-                <p>Successfully inserted: ${result.insertedCount}</p>
-                <p class="text-yellow-400">Failed due to validation errors: ${result.failedCount}</p>
-            `;
-            showToast('Bulk import completed!', 'success');
-            if (collectionName === 'students') renderStudentsPage();
-            if (collectionName === 'teachers') renderTeachersPage();
-            if (collectionName === 'users') renderStaffPage();
-        } else {
-            feedbackDiv.innerHTML = `<span class="text-red-400">An error occurred on the server.</span>`;
-            processBtn.innerHTML = 'Process File';
-        }
+            if (result && result.success) {
+                if (feedbackDiv) {
+                    feedbackDiv.innerHTML = `
+                        <p class="text-green-400 font-bold">Import Complete!</p>
+                        <p>Successfully inserted: ${result.insertedCount}</p>
+                        <p class="text-yellow-400">Failed due to validation errors: ${result.failedCount}</p>
+                    `;
+                }
+                showToast('Bulk import completed!', 'success');
+                if (collectionName === 'students') renderStudentsPage();
+                if (collectionName === 'teachers') renderTeachersPage();
+                if (collectionName === 'users') renderStaffPage();
+            } else {
+                if (feedbackDiv) {
+                    feedbackDiv.innerHTML = `<span class="text-red-400">An error occurred on the server.</span>`;
+                }
+                processBtn.innerHTML = 'Process File';
+            }
 
-        processBtn.disabled = false;
-    };
+            processBtn.disabled = false;
+        };
+    }
 }
 
 export function generateInitialsAvatar(name) {
@@ -493,7 +626,7 @@ export function generateInitialsAvatar(name) {
     }
     initials = initials.toUpperCase();
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#e0ebf3ff"/><text x="50%" y="50%" text-anchor="middle" dy="0.35em" font-size="45" font-family="Inter, sans-serif" font-weight="bold" fill="#000000ff">${initials}</text></svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+    return `data:image/svg+xml;base64,${base64EncodeUnicode(svg)}`;
 }
 
 export const createDashboardCard = ({ title, value, icon, color }) => {
@@ -536,7 +669,7 @@ export function createUpcomingExamCard(exam) {
     const date = eventDate.getDate();
     const month = eventDate.toLocaleString('default', { month: 'short' });
 
-    const [hoursStr, minutes] = exam.time.split(':');
+    const [hoursStr, minutes] = (exam.time || '00:00').split(':');
     const hours = Number(hoursStr);
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const formattedHours = hours % 12 || 12;
@@ -595,7 +728,7 @@ export function renderDashboardCharts(fees, students) {
 
 export function showImageViewer(imageSrc) {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/80 flex justify-center items-center z-50 cursor-pointer animate-in';
+    overlay.className = 'fixed inset-0 bg-black/80 flex justify-center items-center z-50 cursor-pointer animate-fade-in';
     overlay.innerHTML = `<img src="${imageSrc}" class="max-w-[90%] max-h-[90%] object-contain rounded-lg shadow-2xl">`;
     document.body.appendChild(overlay);
     overlay.onclick = () => {
@@ -631,78 +764,10 @@ export function showConfirmationModal(text, onConfirm) {
     openAnimatedModal(ui.confirmModal);
 }
 
-export function openChangePasswordModal() {
-    const modalTitle = 'Change Your Password';
-    const formHtml = `
-        <form id="change-password-form" class="space-y-4">
-            <div>
-                <label for="currentPassword" class="block text-sm font-medium text-slate-300">Current Password</label>
-                <input type="password" id="currentPassword" name="currentPassword" required 
-                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="newPassword" class="block text-sm font-medium text-slate-300">New Password</label>
-                <input type="password" id="newPassword" name="newPassword" required
-                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="confirmPassword" class="block text-sm font-medium text-slate-300">Confirm New Password</label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required
-                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="pt-4 flex justify-end">
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Update Password</button>
-            </div>
-        </form>
-    `;
-
-    ui.modalTitle.textContent = modalTitle;
-    ui.modalBody.innerHTML = formHtml;
-
-    document.getElementById('change-password-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const currentPassword = e.target.currentPassword.value;
-        const newPassword = e.target.newPassword.value;
-        const confirmPassword = e.target.confirmPassword.value;
-
-        if (newPassword.length < 4) { showToast('New password must be at least 4 characters long.', 'error'); return; }
-        if (newPassword !== confirmPassword) { showToast('New passwords do not match.', 'error'); return; }
-        if (newPassword === currentPassword) { showToast('New password cannot be the same as the old one.', 'error'); return; }
-
-        // Local check using existing apiService (no network)
-        const storedPassword = apiService.users[currentUser.username]?.password;
-        if (storedPassword !== undefined && currentPassword !== storedPassword) {
-            showToast('Incorrect current password.', 'error');
-            return;
-        }
-
-        apiService.users[currentUser.username].password = newPassword;
-        await apiService.save();
-
-        showToast('Password updated successfully!', 'success');
-        closeAnimatedModal(ui.modal);
-    });
-
-    openAnimatedModal(ui.modal);
-}
-
-export function showToast(message, type = 'success') {
-    const iconMap = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<i class="fas ${iconMap[type]} text-xl"></i><span>${message}</span>`;
-    ui.toastContainer.appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 100);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-    }, 3000);
-}
-
 // in src/utils/helpers.js
 
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
-    // This line is the fix. It prioritizes the passed 'pageConfig' over the old global variable.
+    // Prioritize the passed 'pageConfig' over the old global variable.
     const config = pageConfig || window.currentPageConfig || {};
     
     const isEditing = Object.keys(initialData).length > 0;
@@ -722,7 +787,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
 
             if (config.collectionName === 'students') {
                 const sectionId = initialData.sectionId?.id || initialData.sectionId;
-                const sectionDetails = store.getMap('sections').get(sectionId);
+                const sectionDetails = (store.getMap('sections') || new Map()).get(sectionId);
                 const departmentName = sectionDetails?.subjectId?.departmentId?.name || 'Unassigned';
                 const sectionName = sectionDetails?.name || 'N/A';
         
@@ -732,10 +797,10 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 `;
             } else if (config.collectionName === 'teachers') {
                 const departmentId = initialData.departmentId?.id || initialData.departmentId;
-                const departmentDetails = store.getMap('departments').get(departmentId);
+                const departmentDetails = (store.getMap('departments') || new Map()).get(departmentId);
                 const departmentName = departmentDetails?.name || 'Unassigned';
 
-                // This is the corrected HTML that will display the details you wanted.
+                // Corrected HTML for teacher details
                 subtitleHtml = `
                     <p class="text-slate-400 text-sm">${initialData.email || 'No email provided'}</p>
                     <p class="text-slate-400 text-xs mt-1">Department: ${departmentName}</p>
@@ -781,7 +846,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
     }
     
     const createFieldHtml = (field, data) => {
-        let value = data[field.name] || field.value || '';
+        let value = data[field.name] ?? field.value ?? '';
         if (field.type === 'date' && typeof value === 'string' && value.includes('T')) {
             value = value.slice(0, 10);
         }
@@ -808,64 +873,103 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
     `;
     ui.modalTitle.textContent = title;
     ui.modalBody.innerHTML = formHtml;
+
+    // Initialize select fields with values if provided
     formFields.forEach(field => {
         const el = document.getElementById(field.id || field.name);
-        if (el && field.type === 'select' && initialData[field.name]) {
-            el.value = initialData[field.name];
+        if (el && field.type === 'select' && initialData[field.name] !== undefined && initialData[field.name] !== null) {
+            try {
+                el.value = initialData[field.name];
+            } catch { /* ignore invalid value errors */ }
         }
     });
-   if (isProfileModal) {
-        // This 'change' listener for the preview is correct as you provided it.
-        document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            const submitButton = document.getElementById('modal-form').querySelector('button[type="submit"]');
-            const previewImage = document.getElementById('modal-img-preview');
-            const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-            if (isHeic) {
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Converting Image...';
-                previewImage.style.filter = 'blur(3px)';
-                try {
-                    const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.8 });
-                    previewImage.src = URL.createObjectURL(convertedBlob);
-                } catch (error) {
-                    showToast("Could not convert the HEIC image.", "error");
-                    event.target.value = "";
-                } finally {
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Save Changes';
-                    previewImage.style.filter = 'none';
+
+    // Image handling with HEIC conversion and compression
+    if (isProfileModal) {
+        const imgInput = document.getElementById('modal-image-upload');
+        if (imgInput) {
+            imgInput.addEventListener('change', async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const previewImage = document.getElementById('modal-img-preview');
+                const submitButton = document.querySelector('#modal-form button[type="submit"]');
+                const prevBtnHtml = submitButton ? submitButton.innerHTML : null;
+
+                // UX: show processing state
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processing image...';
                 }
-            } else {
-                previewImage.src = URL.createObjectURL(file);
-            }
-        });
+                if (previewImage) previewImage.style.filter = 'blur(3px)';
+
+                try {
+                    const { dataUrl } = await compressAndNormalizeImage(file, {
+                        maxWidth: 800,
+                        maxHeight: 800,
+                        quality: 0.8,
+                        outputType: 'image/jpeg'
+                    });
+
+                    newProfileImageData = dataUrl;
+                    if (previewImage) previewImage.src = dataUrl;
+                } catch (err) {
+                    console.error('Image processing failed:', err);
+                    const isHeic = isHeicFile(file);
+                    showToast(isHeic
+                        ? 'Could not convert the HEIC image. Please try another image format.'
+                        : 'Could not process the image. Please try a different image.', 'error');
+                    event.target.value = '';
+                } finally {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        if (prevBtnHtml !== null) submitButton.innerHTML = prevBtnHtml;
+                    }
+                    if (previewImage) previewImage.style.filter = 'none';
+                }
+            });
+        }
+
         const deleteBtn = document.getElementById('modal-delete-btn');
         if (deleteBtn && onDeleteItem) {
             deleteBtn.onclick = () => onDeleteItem(initialData.id);
         }
     }
-    document.getElementById('modal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = Object.fromEntries(new FormData(e.target));
-        if (newProfileImageData) {
-            formData.profileImage = newProfileImageData;
-        }
-        await onSubmit(formData);
-        closeAnimatedModal(ui.modal);
-    });
 
+    // Submit as object (keeps existing flows intact). If image uploaded, include base64 data URL.
+    const modalForm = document.getElementById('modal-form');
+    if (modalForm) {
+        modalForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = Object.fromEntries(new FormData(e.target));
+            
+            // --- FIX [2/2]: PRESERVE EXISTING IMAGE ON EDIT ---
+            if (newProfileImageData) {
+                // A new image was uploaded, so we use it.
+                formData.profileImage = newProfileImageData;
+            } else if (isEditing && initialData.profileImage) {
+                // No new image was uploaded, but we are editing an existing record that has an image.
+                // We must add the old image URL back to the form data to prevent it from being erased.
+                formData.profileImage = initialData.profileImage;
+            }
+            // --- END OF FIX ---
+
+            await onSubmit(formData);
+            closeAnimatedModal(ui.modal);
+        });
+    }
 
     const modalContent = ui.modal.querySelector('.modal-content');
-    if (isProfileModal) {
-        modalContent.classList.add('!max-w-4xl');
-    } else {
-        modalContent.classList.remove('!max-w-4xl');
+    if (modalContent) {
+        if (isProfileModal) {
+            modalContent.classList.add('!max-w-4xl');
+        } else {
+            modalContent.classList.remove('!max-w-4xl');
+        }
     }
     openAnimatedModal(ui.modal);
     ui.modal.addEventListener('transitionend', () => {
-        if (!ui.modal.classList.contains('show')) {
+        if (!ui.modal.classList.contains('show') && modalContent) {
             modalContent.classList.remove('!max-w-4xl');
         }
     }, { once: true });
@@ -893,4 +997,75 @@ export function exportToCsv(filename, headers, rows) {
     link.click();
     document.body.removeChild(link);
     showToast(`Report ${filename} downloaded.`, 'success');
+}
+
+export function openChangePasswordModal() {
+    const modalTitle = 'Change Your Password';
+    const formHtml = `
+        <form id="change-password-form" class="space-y-4">
+            <div>
+                <label for="currentPassword" class="block text-sm font-medium text-slate-300">Current Password</label>
+                <input type="password" id="currentPassword" name="currentPassword" required 
+                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="newPassword" class="block text-sm font-medium text-slate-300">New Password</label>
+                <input type="password" id="newPassword" name="newPassword" required
+                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="confirmPassword" class="block text-sm font-medium text-slate-300">Confirm New Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required
+                       class="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="pt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Update Password</button>
+            </div>
+        </form>
+    `;
+
+    ui.modalTitle.textContent = modalTitle;
+    ui.modalBody.innerHTML = formHtml;
+
+    const form = document.getElementById('change-password-form');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentPassword = e.target.currentPassword.value;
+            const newPassword = e.target.newPassword.value;
+            const confirmPassword = e.target.confirmPassword.value;
+
+            if (newPassword.length < 4) { showToast('New password must be at least 4 characters long.', 'error'); return; }
+            if (newPassword !== confirmPassword) { showToast('New passwords do not match.', 'error'); return; }
+            if (newPassword === currentPassword) { showToast('New password cannot be the same as the old one.', 'error'); return; }
+
+            // Local check using existing apiService (no network)
+            const storedPassword = apiService.users[currentUser.username]?.password;
+            if (storedPassword !== undefined && currentPassword !== storedPassword) {
+                showToast('Incorrect current password.', 'error');
+                return;
+            }
+
+            apiService.users[currentUser.username].password = newPassword;
+            await apiService.save();
+
+            showToast('Password updated successfully!', 'success');
+            closeAnimatedModal(ui.modal);
+        });
+    }
+
+    openAnimatedModal(ui.modal);
+}
+
+export function showToast(message, type = 'success') {
+    const iconMap = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<i class="fas ${iconMap[type]} text-xl"></i><span>${message}</span>`;
+    ui.toastContainer.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 100);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    }, 3000);
 }

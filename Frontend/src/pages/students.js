@@ -609,7 +609,7 @@ const openStudentForm = (studentData = null) => {
      if (!isEditing) {
         formFields.push({ name: "password", label: "Initial Password", type: "password", required: true });
     }
-    // ... (keep the onSubmitHandler and onDeleteHandler logic as is)
+    
     const onSubmitHandler = async (formData) => {
         delete formData.department;
         try {
@@ -622,10 +622,13 @@ const openStudentForm = (studentData = null) => {
                     showToast("Could not create student.", "error");
                     return;
                 }
+                // --- FIX: Pass the profileImage from the created student record to the new user record ---
                 await apiService.create("users", {
                     name: newStudent.name, email: newStudent.email, password: formData.password,
                     role: "Student", studentId: newStudent.id,
+                    profileImage: newStudent.profileImage || null 
                 });
+                // --- END OF FIX ---
                 showToast("Student added successfully!", "success");
             }
             await store.refresh("students");
@@ -653,13 +656,10 @@ const openStudentForm = (studentData = null) => {
         }
         : null;
 
-    // --- THIS IS THE FIX ---
     // We create and pass a config object so the modal knows it's for a 'student'.
     const modalConfig = { collectionName: 'students', title: 'Student' };
     openFormModal(title, formFields, onSubmitHandler, studentData || {}, onDeleteHandler, modalConfig);
-    // -------------------------
-
-    // ... (keep the setTimeout for event listeners exactly as it is)
+    
     setTimeout(() => {
         const departmentSelect = document.getElementById('department-selector');
         const sectionSelect = document.getElementById('sectionId');

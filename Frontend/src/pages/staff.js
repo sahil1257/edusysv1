@@ -1,5 +1,3 @@
-// in frontend/src/pages/staff.js
-
 import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { currentUser, ui } from '../ui.js';
@@ -50,10 +48,13 @@ export async function renderStaffPage() {
             openFormModal('Add New Staff Member', createFormFields, async (formData) => {
                 const newStaffProfile = await apiService.create('staffs', formData);
                 if (newStaffProfile?.id) {
+                    // --- FIX: Pass the profileImage from the created profile to the new user record ---
                     await apiService.create('users', {
                         name: newStaffProfile.name, email: newStaffProfile.email, password: formData.password,
-                        role: newStaffProfile.jobTitle, staffId: newStaffProfile.id
+                        role: newStaffProfile.jobTitle, staffId: newStaffProfile.id,
+                        profileImage: newStaffProfile.profileImage || null
                     });
+                    // --- END OF FIX ---
                     showToast('Staff member added successfully!', 'success');
                     renderStaffPage();
                 } else { showToast('Failed to create staff profile.', 'error'); }

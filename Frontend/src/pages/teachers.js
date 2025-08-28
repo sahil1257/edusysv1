@@ -249,7 +249,6 @@ const createAdvancedSearchPanel = () => {
         if (!isEditing) { formFields.push({ name: 'password', label: 'Initial Password', type: 'password', required: true }); }
 
         const onSubmit = async (formData) => {
-            // ... (keep this logic the same)
             if (!isEditing) formData.departmentId = state.selectedDeptId;
             try {
                 if (isEditing) {
@@ -260,7 +259,13 @@ const createAdvancedSearchPanel = () => {
                     if (!newTeacher || !newTeacher.id) {
                         showToast("Could not create teacher.", "error"); return;
                     }
-                    await apiService.create('users', { name: newTeacher.name, email: newTeacher.email, password: formData.password, role: 'Teacher', teacherId: newTeacher.id });
+                    // --- FIX: Pass the profileImage from the created teacher record to the new user record ---
+                    await apiService.create('users', {
+                        name: newTeacher.name, email: newTeacher.email, password: formData.password, 
+                        role: 'Teacher', teacherId: newTeacher.id,
+                        profileImage: newTeacher.profileImage || null
+                    });
+                    // --- END OF FIX ---
                     showToast('Teacher added successfully!', 'success');
                 }
                 await store.refresh('teachers');
@@ -273,7 +278,6 @@ const createAdvancedSearchPanel = () => {
         };
 
         const onDelete = isEditing ? async () => {
-            // ... (keep this logic the same)
             showConfirmationModal(`Delete ${teacherData.name}?`, async () => {
                 if (await apiService.remove('teachers', teacherData.id)) {
                     showToast('Teacher deleted.', 'success');
@@ -285,10 +289,8 @@ const createAdvancedSearchPanel = () => {
             });
         } : null;
 
-
         const modalConfig = { collectionName: 'teachers', title: 'Teacher' };
         openFormModal(title, formFields, onSubmit, teacherData || {}, onDelete, modalConfig);
-        // ----------------------
     };
 
 
