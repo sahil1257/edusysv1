@@ -44,16 +44,13 @@ export function getSkeletonLoaderHTML(type = 'table') {
 
 // --- THIS FUNCTION WAS REPLACED TO USE FETCH AND YOUR API BASE URL ---
 export async function openAdvancedMessageModal(replyToUserId = null, replyToUserName = null) {
-    // This function creates a notice/message modal.
-    // The logic inside remains the same except for one critical change.
-    const sections = store.get('sections') || []; // Using sections now
+    const sections = store.get('sections') || [];
     const teacherMap = store.getMap('teachers') || new Map();
-    const studentsMap = store.getMap('students') || new Map();
     let users = Array.isArray(store.get('users')) ? store.get('users') : Array.from(store.getMap('users')?.values() || []);
     const allStaff = users.filter(u => u.role && u.role !== 'Student').map(u => ({ id: String(u.id), name: u.name, role: u.role }));
     let modalTitle = 'Send New Notice / Message';
     let isReply = !!(replyToUserId && replyToUserName);
-    if(isReply) modalTitle = `Reply to ${replyToUserName}`;
+    if (isReply) modalTitle = `Reply to ${replyToUserName}`;
 
     const groupedOptions = { 'Broadcasts': [], 'Sections': [], 'Direct to Staff': [], 'Direct to Student': [] };
 
@@ -76,12 +73,16 @@ export async function openAdvancedMessageModal(replyToUserId = null, replyToUser
     const optionsHtml = Object.entries(groupedOptions).filter(([_, opts]) => opts.length > 0).map(([group, opts]) => `<optgroup label="${group}">${opts.map(opt => `<option value="${opt.value}" ${isReply && opt.value === replyToUserId ? 'selected' : ''}>${opt.label}</option>`).join('')}</optgroup>`).join('');
 
     const formFields = [ { name: 'target', label: 'Recipient', type: 'select', required: true, options: optionsHtml }, { name: 'title', label: 'Title / Subject', type: 'text', required: true, value: isReply ? `Re: Your message` : '' }, { name: 'content', label: 'Message Content', type: 'textarea', required: true }, ];
+    
     openFormModal(modalTitle, formFields, async (formData) => {
         const isPrivate = !['All', 'Staff', 'Teacher', 'Student'].includes(formData.target) && !formData.target.startsWith('section_');
         const noticeData = { ...formData, authorId: currentUser.id, date: new Date().toISOString(), type: isPrivate ? 'private_message' : 'notice' };
         if (await apiService.create('notices', noticeData)) {
             showToast(`Message sent successfully!`, 'success');
-            if (document.getElementById('notice-list-container')) { await store.refresh('notices'); renderNoticesPage(); }
+            if (document.getElementById('notice-list-container')) { 
+                await store.refresh('notices'); 
+                renderNoticesPage(); 
+            }
         }
     });
 
@@ -129,7 +130,9 @@ export function createNoticeCard(notice, authorName) {
     const isPrivateMessage = notice.type === 'private_message';
     const allUsersMap = new Map([...store.getMap('students'), ...store.getMap('teachers')]);
 
-   
+    // --- ANALYSIS: ROBUST DATA HANDLING FIX ---
+    // This `if` block is the permanent solution. It checks if `notice.target`
+    // exists and is a string before trying to use string methods on it.
     if (notice.target && typeof notice.target === 'string') {
         if (isPrivateMessage) {
             const recipientName = allUsersMap.get(notice.target)?.name || 'a specific user';
@@ -194,6 +197,7 @@ export function createNoticeCard(notice, authorName) {
             </div>
         </div>`;
 }
+
 
 
 export async function handleVoiceRecording(sendMessageCallback) {
