@@ -4,6 +4,12 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
 
+const fs = require('fs');
+const uploadDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true }); // Still use recursive for safety
+}
 // Load environment variables
 dotenv.config();
 
