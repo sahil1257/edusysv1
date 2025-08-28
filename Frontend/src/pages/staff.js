@@ -6,11 +6,6 @@ import { currentUser, ui } from '../ui.js';
 import { renderGenericListPage } from '../utils/genericListPage.js';
 import { closeAnimatedModal, generateInitialsAvatar, openBulkInsertModal, openFormModal, showConfirmationModal, showToast } from '../utils/helpers.js';
 
-// --- ANALYSIS: API_BASE_URL for Image Paths ---
-// We must define the server's base URL here so we can construct
-// the full path for displaying the optimized images.
-const API_BASE_URL = 'https://edusysv1.vercel.app';
-
 export async function renderStaffPage() {
     const config = {
         title: 'Staff Management',
@@ -21,7 +16,7 @@ export async function renderStaffPage() {
                 label: 'Name', 
                 render: item => `
                     <div class="flex items-center gap-3">
-                        <img src="${item.profileImage ? `${API_BASE_URL}${item.profileImage}` : generateInitialsAvatar(item.name)}" 
+                        <img src="${item.profileImage || generateInitialsAvatar(item.name)}" 
                              alt="${item.name}" 
                              class="w-10 h-10 rounded-full object-cover">
                         <div>

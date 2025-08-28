@@ -2,7 +2,6 @@ import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { ui } from '../ui.js';
 import { closeAnimatedModal, generateInitialsAvatar, openBulkInsertModal, openFormModal, showConfirmationModal, showToast, debounce } from '../utils/helpers.js';
-const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 export async function renderTeachersPage() {
     
@@ -330,7 +329,7 @@ const createAdvancedSearchPanel = () => {
             <td class="p-4">
                 <div class="flex items-center gap-3">
                     <div class="relative flex-shrink-0">
-                        <img src="${teacher.profileImage ? `${API_BASE_URL}${teacher.profileImage}` : generateInitialsAvatar(teacher.name)}" 
+                    <img src="${teacher.profileImage || generateInitialsAvatar(teacher.name)}" 
                              alt="${teacher.name}" 
                              class="w-10 h-10 rounded-full object-cover border-2 border-slate-600 group-hover:border-purple-500 transition-colors">
                     </div>

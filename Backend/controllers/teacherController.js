@@ -4,8 +4,8 @@ const User = require('../models/user.model.js');
 const Department = require('../models/department.model.js');
 // --- NEW IMPORTS FOR IMAGE PROCESSING ---
 const sharp = require('sharp');
-const path = require('path');
-const fs = require('fs');
+const { put } = require('@vercel/blob'); // <-- IMPORT Vercel Blob
+
 
 // Ensure the 'uploads' directory exists at the root of the project
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -59,28 +59,24 @@ const updateTeacher = asyncHandler(async (req, res) => {
     const teacher = await Teacher.findById(req.params.id);
 
     if (teacher) {
-        // Update standard text fields from the request body
         Object.assign(teacher, req.body);
 
-        // Check if a new file was uploaded
         if (req.file) {
             const filename = `${Date.now()}-${teacher._id}.webp`;
-            const filepath = path.join(uploadsDir, filename);
 
-            // Process and save the new image
-            await sharp(req.file.buffer)
+            const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
                 .webp({ quality: 80 })
-                .toFile(filepath);
+                .toBuffer();
 
-            // Update the profileImage path in the database
-            teacher.profileImage = `/uploads/${filename}`;
+            const blob = await put(filename, imageBuffer, { access: 'public' });
+            
+            teacher.profileImage = blob.url; // Save the full URL
         }
 
         const updatedTeacher = await teacher.save();
 
-        // Also update the associated user record
         const user = await User.findOne({ teacherId: teacher._id });
         if (user) {
             user.name = updatedTeacher.name;

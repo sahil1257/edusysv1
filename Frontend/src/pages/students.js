@@ -13,8 +13,6 @@ import {
     showToast,
 } from "../utils/helpers.js";
 
-const API_BASE_URL = 'https://edusysv1.vercel.app';
-
 
 export async function renderStudentsPage() {
     // --- State Management ---
@@ -374,11 +372,10 @@ export async function renderStudentsPage() {
                     ${state.isSelectionMode ? `<td class="p-4"><input type="checkbox" class="student-checkbox w-4 h-4 rounded bg-slate-800/60 border-indigo-600/30 accent-purple-500" data-id="${student.id}" ${state.selectedIds.has(String(student.id)) ? "checked" : ""}></td>` : ""}
                     <td class="p-4">
                         <div class="flex items-center gap-3">
-                            <!-- ANALYSIS: DISPLAYING THE OPTIMIZED IMAGE -->
-                            <!-- This logic is now identical to the profile page. It correctly constructs
-                                 the full URL for the image or falls back to an avatar. -->
-                            <img src="${student.profileImage ? `${API_BASE_URL}${student.profileImage}` : generateInitialsAvatar(student.name)}" 
-                                 alt="${student.name}" class="w-10 h-10 rounded-full object-cover">
+                           
+                                                   <img src="${student.profileImage || generateInitialsAvatar(student.name)}" 
+                             alt="${student.name}" class="w-10 h-10 rounded-full object-cover">
+
                             <div>
                                 <p class="font-semibold text-white">${student.name || 'N/A'}</p>
                                 <a href="mailto:${student.email}" class="text-xs text-slate-400 hover:text-blue-400 transition-colors">${student.email || 'N/A'}</a>

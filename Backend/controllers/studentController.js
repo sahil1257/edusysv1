@@ -1,11 +1,9 @@
-// controllers/studentController.js
 const asyncHandler = require('express-async-handler');
 const Student = require('../models/student.model.js');
-const Section = require('../models/section.model.js');
 const User = require('../models/user.model.js');
-const sharp = require('sharp'); // <-- IMPORT SHARP
-const path = require('path');   // <-- IMPORT PATH
-const fs = require('fs');       // <-- IMPORT FILE SYSTEM
+const sharp = require('sharp');
+const { put } = require('@vercel/blob'); // <-- 1. IMPORT Vercel Blob
+
 
 // Ensure the uploads directory exists
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -76,35 +74,36 @@ const updateStudent = asyncHandler(async (req, res) => {
     const student = await Student.findById(req.params.id);
 
     if (student) {
-        // Update text fields from the request body
         Object.assign(student, req.body);
 
-        // --- NEW IMAGE PROCESSING LOGIC ---
+        // --- ANALYSIS: NEW VERCELL BLOB UPLOAD LOGIC ---
         if (req.file) {
-            // Define the path for the new, compressed image
+            // 2. Create a unique filename for the blob storage.
             const filename = `${Date.now()}-${student._id}.webp`;
-            const filepath = path.join(uploadsDir, filename);
 
-            // Use Sharp to process the image from memory buffer
-            await sharp(req.file.buffer)
-                .resize(500, 500, { fit: 'inside', withoutEnlargement: true }) // Resize to max 500x500
-                .toFormat('webp') // Convert to modern WebP format
-                .webp({ quality: 80 }) // Set WebP quality to 80 (good balance)
-                .toFile(filepath); // Save the file to disk
+            // 3. Process the image in memory using Sharp, but output to a buffer.
+            const imageBuffer = await sharp(req.file.buffer)
+                .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+                .toFormat('webp')
+                .webp({ quality: 80 })
+                .toBuffer(); // <-- Output to buffer, not file
 
-            // Save the URL path to the database
-            student.profileImage = `/uploads/${filename}`;
+            // 4. Upload the buffer to Vercel Blob.
+            const blob = await put(filename, imageBuffer, {
+                access: 'public', // Makes the file publicly accessible via its URL
+            });
+
+            // 5. Save the permanent, full URL returned by Vercel Blob to the database.
+            student.profileImage = blob.url;
         }
         // --- END OF NEW LOGIC ---
 
         const updatedStudent = await student.save();
 
-        // Update associated user record if necessary
         const user = await User.findOne({ studentId: student._id });
-        if (user && (user.name !== updatedStudent.name || user.email !== updatedStudent.email)) {
+        if (user) {
             user.name = updatedStudent.name;
             user.email = updatedStudent.email;
-            // Also update the user's profile image path
             if (student.profileImage) {
                 user.profileImage = student.profileImage;
             }

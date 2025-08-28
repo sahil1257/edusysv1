@@ -4,9 +4,7 @@ const Staff = require('../models/staff.model.js');
 const User = require('../models/user.model.js');
 // --- NEW IMPORTS FOR IMAGE PROCESSING ---
 const sharp = require('sharp');
-const path = require('path');
-const fs = require('fs');
-
+const { put } = require('@vercel/blob'); // <-- IMPORT Vercel Blob
 // Ensure the 'uploads' directory exists at the root of the project
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -62,25 +60,22 @@ const updateStaff = asyncHandler(async (req, res) => {
     if (staff) {
         Object.assign(staff, req.body);
 
-        // Check if a new file was uploaded
         if (req.file) {
             const filename = `${Date.now()}-${staff._id}.webp`;
-            const filepath = path.join(uploadsDir, filename);
 
-            // Process and save the new image
-            await sharp(req.file.buffer)
+            const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
                 .webp({ quality: 80 })
-                .toFile(filepath);
+                .toBuffer();
+
+            const blob = await put(filename, imageBuffer, { access: 'public' });
             
-            // Update the profileImage path in the database
-            staff.profileImage = `/uploads/${filename}`;
+            staff.profileImage = blob.url; // Save the full URL
         }
 
         const updatedStaff = await staff.save();
 
-        // Also update the associated user record
         const user = await User.findOne({ staffId: staff._id });
         if (user) {
             user.name = updatedStaff.name;

@@ -6,8 +6,6 @@ import { currentUser, ui } from '../ui.js';
 import { showToast } from '../utils/helpers.js';
 import { generateInitialsAvatar, openChangePasswordModal, openFormModal } from '../utils/helpers.js';
 
-const API_BASE_URL = 'https://edusysv1.vercel.app';
-
 export async function renderProfilePage() {
     let profileData = { ...currentUser };
 
@@ -57,7 +55,7 @@ export async function renderProfilePage() {
         
        
         <img id="profile-img-preview" 
-             src="${profileData.profileImage ? `${API_BASE_URL}${profileData.profileImage}` : generateInitialsAvatar(profileData.name)}" 
+             src="${profileData.profileImage || generateInitialsAvatar(profileData.name)}" 
              alt="Profile Picture" 
              class="w-32 h-32 rounded-2xl object-cover border-4 border-blue-500/30 shadow-xl transition-all duration-500 group-hover:border-blue-400 group-hover:scale-105">
         
@@ -65,34 +63,30 @@ export async function renderProfilePage() {
     ui.contentArea.innerHTML = profileHtml;
 
     document.getElementById('profile-image-upload').addEventListener('change', async function(event) {
+        
         const file = event.target.files[0];
         if (file) {
-           
             const formData = new FormData();
-            
-
             formData.append('profileImage', file);
 
-           
             let collection = null, id = null;
             if (currentUser.role === 'Student') { collection = 'students'; id = currentUser.studentId; }
             else if (currentUser.role === 'Teacher') { collection = 'teachers'; id = currentUser.teacherId; }
-            else if (currentUser.role === 'Staff' || currentUser.role === 'Admin' || currentUser.role === 'Librarian' || currentUser.role === 'Accountant') {
-                 collection = 'staffs'; 
-                
-                 const user = store.get('users').find(u => u.id === currentUser.id);
-                 id = user?.staffId;
+            else { 
+                const user = store.get('users').find(u => u.id === currentUser.id);
+                if (user?.staffId) {
+                    collection = 'staffs';
+                    id = user.staffId;
+                }
             }
 
             if (collection && id) {
-               
                 const updatedProfile = await apiService.update(collection, id, formData);
-                
                 if (updatedProfile) {
                    
                     currentUser.profileImage = updatedProfile.profileImage;
+                    ui.headerUserAvatar.src = updatedProfile.profileImage; 
                     sessionStorage.setItem('sms_user_pro', JSON.stringify(currentUser));
-                    
                     
                     renderProfilePage(); 
                     showToast('Profile image updated successfully!', 'success');

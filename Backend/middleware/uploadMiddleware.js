@@ -22,7 +22,6 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Initialize Multer with storage and file filter
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
