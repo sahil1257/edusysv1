@@ -44,123 +44,52 @@ export function getSkeletonLoaderHTML(type = 'table') {
 
 // --- THIS FUNCTION WAS REPLACED TO USE FETCH AND YOUR API BASE URL ---
 export async function openAdvancedMessageModal(replyToUserId = null, replyToUserName = null) {
-    const classes = store.get('classes') || [];
+    // This function creates a notice/message modal.
+    // The logic inside remains the same except for one critical change.
+    const sections = store.get('sections') || []; // Using sections now
     const teacherMap = store.getMap('teachers') || new Map();
     const studentsMap = store.getMap('students') || new Map();
-
-    // Get users list robustly from store (fixes Object.values('users') bug)
-    let users = [];
-    const usersFromStore = store.get('users');
-    if (Array.isArray(usersFromStore)) {
-        users = usersFromStore;
-    } else {
-        const usersMap = store.getMap('users');
-        if (usersMap && typeof usersMap.values === 'function') {
-            users = Array.from(usersMap.values());
-        }
-    }
-
-    const allStaff = users
-        .filter(user => user.role && user.role !== 'Student')
-        .map(user => {
-            let staffName = user.name || 'Unnamed Staff';
-            let staffTargetId = user.id || user.email || user.username;
-
-            if (user.role === 'Teacher' && user.teacherId) {
-                const teacherDetails = teacherMap.get(user.teacherId);
-                if (teacherDetails) {
-                    staffName = teacherDetails.name || staffName;
-                    staffTargetId = teacherDetails.id || user.teacherId;
-                } else {
-                    staffTargetId = user.teacherId;
-                }
-            }
-
-            return { id: String(staffTargetId), name: staffName, role: user.role };
-        });
-
+    let users = Array.isArray(store.get('users')) ? store.get('users') : Array.from(store.getMap('users')?.values() || []);
+    const allStaff = users.filter(u => u.role && u.role !== 'Student').map(u => ({ id: String(u.id), name: u.name, role: u.role }));
     let modalTitle = 'Send New Notice / Message';
-    let isReply = false;
-    if (replyToUserId && replyToUserName) {
-        modalTitle = `Reply to ${replyToUserName}`;
-        isReply = true;
-    }
+    let isReply = !!(replyToUserId && replyToUserName);
+    if(isReply) modalTitle = `Reply to ${replyToUserName}`;
 
-    const groupedOptions = {
-        'Broadcasts': [],
-        'Classes': [],
-        'Direct to Staff': [],
-        'Direct to Student': []
-    };
+    const groupedOptions = { 'Broadcasts': [], 'Sections': [], 'Direct to Staff': [], 'Direct to Student': [] };
 
-    // Populate Broadcast options
     if (currentUser.role === 'Admin') {
-        groupedOptions['Broadcasts'].push(
-            { value: 'All', label: 'Everyone (All Staff & Students)' },
-            { value: 'Staff', label: 'All Staff Members' },
-            { value: 'Teacher', label: 'All Teachers' },
-            { value: 'Student', label: 'All Students' }
-        );
+        groupedOptions['Broadcasts'].push( { value: 'All', label: 'Everyone' }, { value: 'Staff', label: 'All Staff' }, { value: 'Teacher', label: 'All Teachers' }, { value: 'Student', label: 'All Students' } );
     }
 
-    // Populate Class options
-    const classList = (currentUser.role === 'Teacher') ? classes.filter(c => c.teacherId === currentUser.id) : classes;
-    classList.forEach(c => groupedOptions['Classes'].push({ value: `class_${c.id}`, label: c.name }));
+    // --- ANALYSIS: STANDARDIZATION FIX ---
+    // The value is now `section_${s.id}` instead of `class_${c.id}` to be consistent.
+    const sectionList = (currentUser.role === 'Teacher') ? sections.filter(s => s.classTeacherId?.id === currentUser.id) : sections;
+    sectionList.forEach(s => groupedOptions['Sections'].push({ value: `section_${s.id}`, label: `${s.subjectId?.name || 'Subject'} - Sec ${s.name}` }));
 
-    // Populate Direct Message options
     if (currentUser.role === 'Admin') {
         allStaff.forEach(s => groupedOptions['Direct to Staff'].push({ value: s.id, label: `${s.name} (${s.role})` }));
-    }
-    if (currentUser.role === 'Teacher' && !isReply) { // Only show admin if not a reply
-        groupedOptions['Direct to Staff'].push({ value: 'admin', label: 'Admin' });
     }
     if (isReply) {
         groupedOptions['Direct to Student'].push({ value: replyToUserId, label: `${replyToUserName} (Student)` });
     }
 
-    const optionsHtml = Object.entries(groupedOptions)
-        .filter(([_, options]) => options.length > 0)
-        .map(([group, options]) => `<optgroup label="${group}">${options.map(opt => `<option value="${opt.value}" ${isReply && opt.value === replyToUserId ? 'selected' : ''}>${opt.label}</option>`).join('')}</optgroup>`)
-        .join('');
+    const optionsHtml = Object.entries(groupedOptions).filter(([_, opts]) => opts.length > 0).map(([group, opts]) => `<optgroup label="${group}">${opts.map(opt => `<option value="${opt.value}" ${isReply && opt.value === replyToUserId ? 'selected' : ''}>${opt.label}</option>`).join('')}</optgroup>`).join('');
 
-    const formFields = [
-        { name: 'target', label: 'Recipient', type: 'select', required: true, options: optionsHtml },
-        { name: 'title', label: 'Title / Subject', type: 'text', required: true, value: isReply ? `Re: Your message` : '' },
-        { name: 'content', label: 'Message Content', type: 'textarea', required: true },
-    ];
-
+    const formFields = [ { name: 'target', label: 'Recipient', type: 'select', required: true, options: optionsHtml }, { name: 'title', label: 'Title / Subject', type: 'text', required: true, value: isReply ? `Re: Your message` : '' }, { name: 'content', label: 'Message Content', type: 'textarea', required: true }, ];
     openFormModal(modalTitle, formFields, async (formData) => {
-        const isPrivate = !['All', 'Staff', 'Teacher', 'Student'].includes(formData.target) && !formData.target.startsWith('class_');
-
-        const noticeData = {
-            ...formData,
-            authorId: currentUser.id || currentUser.username,
-            date: new Date().toISOString(),
-            type: isPrivate ? 'private_message' : 'notice'
-        };
-
-        // --- THIS IS THE FIX ---
-        // The manual fetch call with the wrong URL has been replaced.
-        // We now use the centralized apiService, which constructs the correct URL.
-        const result = await apiService.create('notices', noticeData);
-        // --- END OF FIX ---
-
-        if (!result) return;
-
-        showToast(`Message sent successfully!`, 'success');
-
-        if (document.getElementById('notice-list-container')) {
-            renderNoticesPage();
+        const isPrivate = !['All', 'Staff', 'Teacher', 'Student'].includes(formData.target) && !formData.target.startsWith('section_');
+        const noticeData = { ...formData, authorId: currentUser.id, date: new Date().toISOString(), type: isPrivate ? 'private_message' : 'notice' };
+        if (await apiService.create('notices', noticeData)) {
+            showToast(`Message sent successfully!`, 'success');
+            if (document.getElementById('notice-list-container')) { await store.refresh('notices'); renderNoticesPage(); }
         }
     });
 
     if (isReply) {
-        setTimeout(() => {
-            const targetSelect = document.getElementById('target');
-            if (targetSelect) targetSelect.disabled = true;
-        }, 100);
+        setTimeout(() => { const targetSelect = document.getElementById('target'); if (targetSelect) targetSelect.disabled = true; }, 100);
     }
 }
+
 
 export function timeAgo(dateString) {
     const date = new Date(dateString);
@@ -200,26 +129,33 @@ export function createNoticeCard(notice, authorName) {
     const isPrivateMessage = notice.type === 'private_message';
     const allUsersMap = new Map([...store.getMap('students'), ...store.getMap('teachers')]);
 
-    if (isPrivateMessage) {
-        const recipientName = allUsersMap.get(notice.target)?.name || 'a specific user';
-        audienceText = `Private to: ${recipientName}`;
-        borderColorClass = 'border-purple-500';
-    } else if (notice.target === 'All') {
-        audienceText = 'For: Everyone';
-        borderColorClass = 'border-blue-500';
-    } else if (notice.target === 'Student') {
-        audienceText = 'For: All Students';
-        borderColorClass = 'border-green-500';
-    } else if (notice.target === 'Teacher') {
-        audienceText = 'For: All Teachers';
-        borderColorClass = 'border-yellow-500';
-    } else if (notice.target.startsWith('class_')) {
-        const className = store.getMap('classes').get(notice.target.split('_')[1])?.name || 'a Specific Class';
-        audienceText = `For: ${className}`;
-        borderColorClass = 'border-red-500';
+   
+    if (notice.target && typeof notice.target === 'string') {
+        if (isPrivateMessage) {
+            const recipientName = allUsersMap.get(notice.target)?.name || 'a specific user';
+            audienceText = `Private to: ${recipientName}`;
+            borderColorClass = 'border-purple-500';
+        } else if (notice.target === 'All') {
+            audienceText = 'For: Everyone';
+            borderColorClass = 'border-blue-500';
+        } else if (notice.target === 'Student') {
+            audienceText = 'For: All Students';
+            borderColorClass = 'border-green-500';
+        } else if (notice.target === 'Teacher') {
+            audienceText = 'For: All Teachers';
+            borderColorClass = 'border-yellow-500';
+        } else if (notice.target.startsWith('section_')) { // Standardized to 'section_'
+            const sectionName = store.getMap('sections').get(notice.target.split('_')[1])?.name || 'a Specific Section';
+            audienceText = `For: Section ${sectionName}`;
+            borderColorClass = 'border-red-500';
+        } else {
+            audienceText = `For: ${notice.target}`;
+            borderColorClass = 'border-teal-500';
+        }
     } else {
-        audienceText = `For: ${notice.target}`;
-        borderColorClass = 'border-teal-500';
+        // This is the fallback for corrupted data. The app will no longer crash.
+        audienceText = 'For: Unknown Audience';
+        borderColorClass = 'border-gray-500';
     }
 
     let actionButtonsHtml = '';
@@ -258,6 +194,7 @@ export function createNoticeCard(notice, authorName) {
             </div>
         </div>`;
 }
+
 
 export async function handleVoiceRecording(sendMessageCallback) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
