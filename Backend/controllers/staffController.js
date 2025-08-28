@@ -2,7 +2,16 @@
 const asyncHandler = require('express-async-handler');
 const Staff = require('../models/staff.model.js');
 const User = require('../models/user.model.js');
+// --- NEW IMPORTS FOR IMAGE PROCESSING ---
+const sharp = require('sharp');
+const path = require('path');
+const fs = require('fs');
 
+// Ensure the 'uploads' directory exists at the root of the project
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 // @desc    Get all staff members
 // @route   GET /staffs
 // @access  Private
@@ -52,13 +61,33 @@ const updateStaff = asyncHandler(async (req, res) => {
 
     if (staff) {
         Object.assign(staff, req.body);
+
+        // Check if a new file was uploaded
+        if (req.file) {
+            const filename = `${Date.now()}-${staff._id}.webp`;
+            const filepath = path.join(uploadsDir, filename);
+
+            // Process and save the new image
+            await sharp(req.file.buffer)
+                .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+                .toFormat('webp')
+                .webp({ quality: 80 })
+                .toFile(filepath);
+            
+            // Update the profileImage path in the database
+            staff.profileImage = `/uploads/${filename}`;
+        }
+
         const updatedStaff = await staff.save();
 
-        // Also update the associated user record's name and email if they changed
+        // Also update the associated user record
         const user = await User.findOne({ staffId: staff._id });
-        if (user && (user.name !== updatedStaff.name || user.email !== updatedStaff.email)) {
+        if (user) {
             user.name = updatedStaff.name;
             user.email = updatedStaff.email;
+            if (staff.profileImage) {
+                user.profileImage = staff.profileImage;
+            }
             await user.save();
         }
 
@@ -69,22 +98,6 @@ const updateStaff = asyncHandler(async (req, res) => {
     }
 });
 
-// @desc    Delete a staff member profile
-// @route   DELETE /staffs/:id
-// @access  Private (Admin)
-const deleteStaff = asyncHandler(async (req, res) => {
-    const staff = await Staff.findById(req.params.id);
-
-    if (staff) {
-        // Also delete the associated user login
-        await User.deleteOne({ staffId: staff._id });
-        await staff.deleteOne();
-        res.json({ message: 'Staff member and associated user removed' });
-    } else {
-        res.status(404);
-        throw new Error('Staff member not found');
-    }
-});
 
 // @desc    Create multiple staff members and their user accounts in bulk
 // @route   POST /staffs/bulk

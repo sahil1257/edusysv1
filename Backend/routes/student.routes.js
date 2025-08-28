@@ -1,6 +1,8 @@
 // routes/student.routes.js
 const express = require('express');
 const router = express.Router();
+const upload = require('../middleware/uploadMiddleware'); // <-- IMPORT THE MIDDLEWARE
+
 const {
     getStudents,
     createStudent,
@@ -25,7 +27,7 @@ router.delete('/bulk', bulkDeleteStudents);
 
 router.route('/:id')
     .get(getStudentById)
-    .put(updateStudent)
+    .put(upload.single('profileImage'), updateStudent) // <-- ADD THE MIDDLEWARE HERE
     .delete(deleteStudent);
 
 module.exports = router;

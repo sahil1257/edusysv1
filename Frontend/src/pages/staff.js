@@ -1,10 +1,15 @@
-// src/pages/staff.js
+// in frontend/src/pages/staff.js
 
 import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { currentUser, ui } from '../ui.js';
 import { renderGenericListPage } from '../utils/genericListPage.js';
 import { closeAnimatedModal, generateInitialsAvatar, openBulkInsertModal, openFormModal, showConfirmationModal, showToast } from '../utils/helpers.js';
+
+// --- ANALYSIS: API_BASE_URL for Image Paths ---
+// We must define the server's base URL here so we can construct
+// the full path for displaying the optimized images.
+const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 export async function renderStaffPage() {
     const config = {
@@ -16,14 +21,15 @@ export async function renderStaffPage() {
                 label: 'Name', 
                 render: item => `
                     <div class="flex items-center gap-3">
-                        <img src="${item.profileImage || generateInitialsAvatar(item.name)}" alt="${item.name}" class="w-10 h-10 rounded-full object-cover">
+                        <img src="${item.profileImage ? `${API_BASE_URL}${item.profileImage}` : generateInitialsAvatar(item.name)}" 
+                             alt="${item.name}" 
+                             class="w-10 h-10 rounded-full object-cover">
                         <div>
                             <p class="font-semibold text-white">${item.name || 'N/A'}</p>
                             <a href="mailto:${item.email}" class="text-xs text-slate-400 hover:text-blue-400 transition-colors">${item.email || 'N/A'}</a>
                         </div>
                     </div>`
             },
-            // --- MODIFICATION 3: Change column header to match screenshot ---
             { label: 'Role / Profession', key: 'jobTitle' },
             { label: 'Contact', key: 'contact' },
         ],
@@ -31,7 +37,6 @@ export async function renderStaffPage() {
         formFields: [
             { name: 'name', label: 'Full Name', type: 'text', required: true },
             { name: 'email', label: 'Email Address (for login)', type: 'email', required: true },
-            // --- MODIFICATION 4: Change form field label to match screenshot ---
             { name: 'jobTitle', label: 'Role / Profession', type: 'select', required: true, options: `
                 <option value="Admin">Admin</option>
                 <option value="Accountant">Accountant</option>
@@ -89,6 +94,7 @@ export async function renderStaffPage() {
                     
                     if (staffData) {
                         const onSubmit = async (formData) => {
+                            // The `apiService.update` will now correctly handle the FormData
                             if (await apiService.update('staffs', staffId, formData)) {
                                 showToast('Staff details updated successfully!', 'success');
                                 renderStaffPage();
@@ -104,8 +110,9 @@ export async function renderStaffPage() {
                             });
                         };
                         
-                        // --- MODIFICATION 5: Change modal title to match screenshot ---
-                        openFormModal('Edit Staff & Colleagues', config.formFields, onSubmit, staffData, onDelete);
+                        
+                        const modalConfig = { collectionName: 'staffs', title: 'Staff' };
+                        openFormModal('Edit Staff & Colleagues', config.formFields, onSubmit, staffData, onDelete, modalConfig);
                     }
                 };
             });

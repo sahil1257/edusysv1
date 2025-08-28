@@ -832,14 +832,22 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
         }
     }
     document.getElementById('modal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = Object.fromEntries(new FormData(e.target));
-        if (newProfileImageData) {
-            formData.profileImage = newProfileImageData;
+        e.preventDefault();       
+        const formData = new FormData();
+        const form = e.target;
+        formFields.forEach(field => {
+            if (form.elements[field.name]) {
+                formData.append(field.name, form.elements[field.name].value);
+            }
+        });
+        const imageUploadInput = document.getElementById('modal-image-upload');
+        if (imageUploadInput && imageUploadInput.files.length > 0) {
+            formData.append('profileImage', imageUploadInput.files[0]);
         }
         await onSubmit(formData);
         closeAnimatedModal(ui.modal);
     });
+
     const modalContent = ui.modal.querySelector('.modal-content');
     if (isProfileModal) {
         modalContent.classList.add('!max-w-4xl');

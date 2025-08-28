@@ -2,6 +2,7 @@ import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { currentUser, ui } from '../ui.js';
 import { generateInitialsAvatar, showConfirmationModal, showToast, timeAgo, openAdvancedMessageModal, openFormModal } from '../utils/helpers.js';
+const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 // --- প্রধান ফাংশন ---
 export async function renderNoticesPage() {
@@ -226,7 +227,7 @@ export function createPremiumNoticeCard(notice) {
     }
 
     return `
-    <div class="premium-notice-card">
+        <div class="premium-notice-card">
         ${ribbonContent}
         <div class="p-5">
             <div class="flex justify-between items-start gap-2">
@@ -236,7 +237,10 @@ export function createPremiumNoticeCard(notice) {
                         <p class="text-sm font-medium text-slate-300">${author.name}</p>
                         <p class="text-xs text-slate-500">${timeAgo(notice.date)}</p>
                     </div>
-                    <img src="${author.profileImage || generateInitialsAvatar(author.name)}" alt="${author.name}" class="w-9 h-9 rounded-full object-cover">
+                    <img src="${author.profileImage ? `${API_BASE_URL}${author.profileImage}` : generateInitialsAvatar(author.name)}" 
+                         alt="${author.name}" 
+                         class="w-9 h-9 rounded-full object-cover">
+                         
                     <div class="card-actions">${actionButtons}</div>
                 </div>
             </div>
@@ -245,6 +249,7 @@ export function createPremiumNoticeCard(notice) {
         </div>
     </div>`;
 }
+
 
 
 // --- REPLACE THE OLD LISTENER FUNCTION WITH THIS ENTIRE NEW BLOCK ---

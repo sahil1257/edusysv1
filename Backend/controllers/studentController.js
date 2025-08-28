@@ -3,6 +3,17 @@ const asyncHandler = require('express-async-handler');
 const Student = require('../models/student.model.js');
 const Section = require('../models/section.model.js');
 const User = require('../models/user.model.js');
+const sharp = require('sharp'); // <-- IMPORT SHARP
+const path = require('path');   // <-- IMPORT PATH
+const fs = require('fs');       // <-- IMPORT FILE SYSTEM
+
+// Ensure the uploads directory exists
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+
 
 // --- THIS IS THE CORRECTED AND DEEPLY NESTED POPULATE LOGIC ---
 const populateStudentDetails = (query) => {
@@ -65,25 +76,48 @@ const updateStudent = asyncHandler(async (req, res) => {
     const student = await Student.findById(req.params.id);
 
     if (student) {
-        // Update all fields provided in the request body
+        // Update text fields from the request body
         Object.assign(student, req.body);
-        
+
+        // --- NEW IMAGE PROCESSING LOGIC ---
+        if (req.file) {
+            // Define the path for the new, compressed image
+            const filename = `${Date.now()}-${student._id}.webp`;
+            const filepath = path.join(uploadsDir, filename);
+
+            // Use Sharp to process the image from memory buffer
+            await sharp(req.file.buffer)
+                .resize(500, 500, { fit: 'inside', withoutEnlargement: true }) // Resize to max 500x500
+                .toFormat('webp') // Convert to modern WebP format
+                .webp({ quality: 80 }) // Set WebP quality to 80 (good balance)
+                .toFile(filepath); // Save the file to disk
+
+            // Save the URL path to the database
+            student.profileImage = `/uploads/${filename}`;
+        }
+        // --- END OF NEW LOGIC ---
+
         const updatedStudent = await student.save();
 
-        // Also update the associated user record's name and email if they changed
+        // Update associated user record if necessary
         const user = await User.findOne({ studentId: student._id });
-        if(user && (user.name !== updatedStudent.name || user.email !== updatedStudent.email)) {
+        if (user && (user.name !== updatedStudent.name || user.email !== updatedStudent.email)) {
             user.name = updatedStudent.name;
             user.email = updatedStudent.email;
+            // Also update the user's profile image path
+            if (student.profileImage) {
+                user.profileImage = student.profileImage;
+            }
             await user.save();
         }
 
-        res.json(updatedStudent);    
+        res.json(updatedStudent);
     } else {
         res.status(404);
         throw new Error('Student not found');
     }
 });
+
 
 // @desc    Delete a student profile
 // @route   DELETE /students/:id

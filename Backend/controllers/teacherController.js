@@ -2,7 +2,16 @@ const asyncHandler = require('express-async-handler');
 const Teacher = require('../models/teacher.model.js');
 const User = require('../models/user.model.js');
 const Department = require('../models/department.model.js');
+// --- NEW IMPORTS FOR IMAGE PROCESSING ---
+const sharp = require('sharp');
+const path = require('path');
+const fs = require('fs');
 
+// Ensure the 'uploads' directory exists at the root of the project
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 // @desc    Get all teachers
 // @route   GET /teachers
 // @access  Private
@@ -50,23 +59,45 @@ const updateTeacher = asyncHandler(async (req, res) => {
     const teacher = await Teacher.findById(req.params.id);
 
     if (teacher) {
+        // Update standard text fields from the request body
         Object.assign(teacher, req.body);
+
+        // Check if a new file was uploaded
+        if (req.file) {
+            const filename = `${Date.now()}-${teacher._id}.webp`;
+            const filepath = path.join(uploadsDir, filename);
+
+            // Process and save the new image
+            await sharp(req.file.buffer)
+                .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+                .toFormat('webp')
+                .webp({ quality: 80 })
+                .toFile(filepath);
+
+            // Update the profileImage path in the database
+            teacher.profileImage = `/uploads/${filename}`;
+        }
+
         const updatedTeacher = await teacher.save();
 
-        // Also update the associated user record's name and email if they changed
-const user = await User.findOne({ teacherId: teacher._id });
-if(user && (user.name !== updatedTeacher.name || user.email !== updatedTeacher.email)) {
-    user.name = updatedTeacher.name;
-    user.email = updatedTeacher.email;
-    await user.save();
-}
+        // Also update the associated user record
+        const user = await User.findOne({ teacherId: teacher._id });
+        if (user) {
+            user.name = updatedTeacher.name;
+            user.email = updatedTeacher.email;
+            if (teacher.profileImage) {
+                user.profileImage = teacher.profileImage;
+            }
+            await user.save();
+        }
 
-res.json(updatedTeacher);
+        res.json(updatedTeacher);
     } else {
         res.status(404);
         throw new Error('Teacher not found');
     }
 });
+
 
 // @desc    Delete a teacher profile
 // @route   DELETE /teachers/:id
