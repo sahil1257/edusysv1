@@ -699,7 +699,7 @@ export function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// in src/utils/helpers.js
+
 
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
     // This line is the fix. It prioritizes the passed 'pageConfig' over the old global variable.
