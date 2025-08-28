@@ -1,8 +1,9 @@
+// in frontend/src/pages/notices.js
+
 import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { currentUser, ui } from '../ui.js';
 import { generateInitialsAvatar, showConfirmationModal, showToast, timeAgo, openAdvancedMessageModal, openFormModal } from '../utils/helpers.js';
-const API_BASE_URL = 'https://edusysv1.vercel.app';
 
 // --- প্রধান ফাংশন ---
 export async function renderNoticesPage() {
@@ -10,6 +11,7 @@ export async function renderNoticesPage() {
         store.refresh('notices'),
         store.refresh('users'),
         store.refresh('sections'),
+        store.refresh('students'), // Ensure students are available for counts
         store.refresh('timetable')
     ]);
 
@@ -35,10 +37,10 @@ function renderTeacherSectionSelector() {
 
     const mySections = Array.from(mySectionIds).map(id => {
         const section = allSections.find(s => s.id === id);
-        if (!section) return null; // যদি সেকশন না পাওয়া যায়
+        if (!section) return null;
         const studentCount = store.get('students').filter(st => st.sectionId?.id === id).length;
         return { ...section, studentCount };
-    }).filter(Boolean); // null ভ্যালু বাদ দেওয়ার জন্য
+    }).filter(Boolean);
 
     ui.contentArea.innerHTML = `
         <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700 shadow-md animate-fade-in">
@@ -56,7 +58,7 @@ function renderTeacherSectionSelector() {
                             <div class="card-icon"><i class="fas fa-users"></i></div>
                             <div>
                                 <h4 class="card-title">Section ${section.name}</h4>
-                                <p class="card-subtitle">${section.subjectId?.name || 'N/A'}</p>
+                                <p class="card-subtitle">${section.subjectId?.name || 'N/A'} (${section.studentCount} students)</p>
                             </div>
                         </div>
                         <i class="fas fa-chevron-right card-arrow"></i>
@@ -69,7 +71,6 @@ function renderTeacherSectionSelector() {
         </div>
     `;
 
-    // **FIX**: প্রতিটি সেকশন কার্ডে ক্লিক ইভেন্ট যোগ করা
     document.querySelectorAll('.section-card-notice').forEach(card => {
         card.onclick = () => {
             const section = {
@@ -111,7 +112,6 @@ function renderNoticeListForSection(section) {
     attachNoticeActionListeners();
 }
 
-// (বাকি ফাংশনগুলো অপরিবর্তিত)
 function openSectionNoticeModal(section) {
     const formFields = [{ name: 'title', label: 'Notice Title', type: 'text', required: true }, { name: 'content', label: 'Notice Content', type: 'textarea', required: true, rows: 5 }];
     openFormModal(`New Notice for Section ${section.name}`, formFields, async (formData) => {
@@ -127,6 +127,7 @@ function openSectionNoticeModal(section) {
 function renderGenericNoticeList() {
     const allNotices = store.get('notices');
     const relevantNotices = allNotices.filter(n => {
+        if (!n.target) return false; // Safety check for corrupted data
         if (n.authorId === currentUser.id) return true;
         if (n.type === 'private_message' && n.target === currentUser.id) return true;
         if (n.type === 'notice') {
@@ -145,20 +146,11 @@ function renderGenericNoticeList() {
     attachNoticeActionListeners();
 }
 
-// in frontend/src/pages/notices.js
-
-// ... (keep all other existing functions like renderNoticesPage, etc., as they are)
-
-
-// --- REPLACE THE OLD FUNCTION WITH THIS NEW VERSION ---
-// in src/pages/notices.js
-
 export function createPremiumNoticeCard(notice) {
     const allUsersMap = new Map(store.get('users').map(u => [u.id, u]));
     allUsersMap.set(currentUser.id, currentUser);
     const author = allUsersMap.get(notice.authorId) || { name: 'School Admin', profileImage: null };
 
-    // --- NEW LOGIC: Specifically find likes, dislikes, and who reacted ---
     const likes = notice.reactions.filter(r => r.type === '👍');
     const dislikes = notice.reactions.filter(r => r.type === '👎');
 
@@ -167,17 +159,21 @@ export function createPremiumNoticeCard(notice) {
 
     const currentUserReaction = notice.reactions.find(r => r.userId === currentUser.id);
 
-    // Ribbon logic remains the same
     let ribbonContent;
-    if (notice.type === 'private_message') {
-        ribbonContent = `<div class="card-ribbon bg-purple-500/20 text-purple-400">Private Message</div>`;
-    } else if (notice.target.startsWith('section_')) {
-        const section = store.get('sections').find(s => s.id === notice.target.replace('section_', ''));
-        ribbonContent = `<div class="card-ribbon bg-rose-500/20 text-rose-400">For Section ${section?.name || ''}</div>`;
+    // Defensive check for target
+    if (notice.target && typeof notice.target === 'string') {
+        if (notice.type === 'private_message') {
+            ribbonContent = `<div class="card-ribbon bg-purple-500/20 text-purple-400">Private Message</div>`;
+        } else if (notice.target.startsWith('section_')) {
+            const section = store.get('sections').find(s => s.id === notice.target.replace('section_', ''));
+            ribbonContent = `<div class="card-ribbon bg-rose-500/20 text-rose-400">For Section ${section?.name || ''}</div>`;
+        } else {
+            const targetText = { 'All': 'Public', 'Student': 'For Students', 'Teacher': 'For Teachers' }[notice.target] || 'Notice';
+            const ribbonColor = { 'All': 'blue', 'Student': 'green', 'Teacher': 'amber' }[notice.target] || 'gray';
+            ribbonContent = `<div class="card-ribbon bg-${ribbonColor}-500/20 text-${ribbonColor}-400">${targetText}</div>`;
+        }
     } else {
-        const targetText = { 'All': 'Public', 'Student': 'For Students', 'Teacher': 'For Teachers' }[notice.target] || 'Notice';
-        const ribbonColor = { 'All': 'blue', 'Student': 'green', 'Teacher': 'amber' }[notice.target] || 'gray';
-        ribbonContent = `<div class="card-ribbon bg-${ribbonColor}-500/20 text-${ribbonColor}-400">${targetText}</div>`;
+        ribbonContent = `<div class="card-ribbon bg-gray-500/20 text-gray-400">Unknown Target</div>`;
     }
 
     let actionButtons = '';
@@ -185,43 +181,21 @@ export function createPremiumNoticeCard(notice) {
         actionButtons = `<button class="delete-btn" title="Delete" data-id="${notice.id}"><i class="fas fa-trash-alt"></i></button>`;
     }
 
-    // --- REBUILT REACTION SECTION ---
     let reactionSectionHtml = '';
     if (notice.type === 'notice') {
         reactionSectionHtml = `
             <div class="mt-4 pt-4 border-t border-slate-700/50 flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-2">
-                    <!-- Like Button -->
-                    <button class="reaction-btn ${currentUserReaction?.type === '👍' ? 'active-like' : ''}" 
-                            data-id="${notice.id}" 
-                            data-reaction-type="👍">
-                        <span>👍</span>
-                        <span>${likes.length}</span>
+                    <button class="reaction-btn ${currentUserReaction?.type === '👍' ? 'active-like' : ''}" data-id="${notice.id}" data-reaction-type="👍">
+                        <span>👍</span> <span>${likes.length}</span>
                     </button>
-
-                    <!-- Dislike Button -->
-                    <button class="reaction-btn ${currentUserReaction?.type === '👎' ? 'active-dislike' : ''}" 
-                            data-id="${notice.id}" 
-                            data-reaction-type="👎">
-                        <span>👎</span>
-                        <span>${dislikes.length}</span>
+                    <button class="reaction-btn ${currentUserReaction?.type === '👎' ? 'active-dislike' : ''}" data-id="${notice.id}" data-reaction-type="👎">
+                        <span>👎</span> <span>${dislikes.length}</span>
                     </button>
                 </div>
-
-                <!-- Display who reacted (on hover) -->
                 <div class="flex items-center gap-4">
-                    ${likes.length > 0 ? `
-                        <div class="reaction-display" title="Liked by: ${likedByUsers}">
-                            <i class="fas fa-thumbs-up text-blue-400"></i>
-                            <span>${likes.length} like${likes.length > 1 ? 's' : ''}</span>
-                        </div>
-                    ` : ''}
-                    ${dislikes.length > 0 ? `
-                        <div class="reaction-display" title="Disliked by: ${dislikedByUsers}">
-                            <i class="fas fa-thumbs-down text-red-400"></i>
-                            <span>${dislikes.length} dislike${dislikes.length > 1 ? 's' : ''}</span>
-                        </div>
-                    ` : ''}
+                    ${likes.length > 0 ? `<div class="reaction-display" title="Liked by: ${likedByUsers}"><i class="fas fa-thumbs-up text-blue-400"></i><span>${likes.length} like${likes.length > 1 ? 's' : ''}</span></div>` : ''}
+                    ${dislikes.length > 0 ? `<div class="reaction-display" title="Disliked by: ${dislikedByUsers}"><i class="fas fa-thumbs-down text-red-400"></i><span>${dislikes.length} dislike${dislikes.length > 1 ? 's' : ''}</span></div>` : ''}
                 </div>
             </div>`;
     }
@@ -237,7 +211,10 @@ export function createPremiumNoticeCard(notice) {
                         <p class="text-sm font-medium text-slate-300">${author.name}</p>
                         <p class="text-xs text-slate-500">${timeAgo(notice.date)}</p>
                     </div>
-                    <img src="${author.profileImage ? `${API_BASE_URL}${author.profileImage}` : generateInitialsAvatar(author.name)}" 
+                    <!-- ANALYSIS: THE FINAL FIX -->
+                    <!-- The src now directly uses author.profileImage because it's a full URL.
+                         The broken API_BASE_URL prefix has been removed. -->
+                    <img src="${author.profileImage || generateInitialsAvatar(author.name)}" 
                          alt="${author.name}" 
                          class="w-9 h-9 rounded-full object-cover">
                          
@@ -250,13 +227,7 @@ export function createPremiumNoticeCard(notice) {
     </div>`;
 }
 
-
-
-// --- REPLACE THE OLD LISTENER FUNCTION WITH THIS ENTIRE NEW BLOCK ---
-// in src/pages/notices.js
-
 export function attachNoticeActionListeners() {
-    // --- Delete Button Listener (remains the same) ---
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.onclick = () => showConfirmationModal('Are you sure you want to delete this notice?', async () => {
             if (await apiService.remove('notices', btn.dataset.id)) {
@@ -266,23 +237,16 @@ export function attachNoticeActionListeners() {
         });
     });
 
-    // --- NEW: Simplified Listener for Like/Dislike Buttons ---
     document.querySelectorAll('.reaction-btn').forEach(btn => {
         btn.onclick = async () => {
             const noticeId = btn.dataset.id;
-            const reactionType = btn.dataset.reactionType; // This will be "👍" or "👎"
-
-            // Disable the button to prevent multiple clicks
+            const reactionType = btn.dataset.reactionType;
             btn.disabled = true;
-
             const result = await apiService.reactToNotice(noticeId, reactionType);
             if (result) {
-                // If successful, refresh the data store and re-render the entire page
-                // This is the easiest way to ensure all counts and active states are correct
                 await store.refresh('notices');
                 renderNoticesPage();
             } else {
-                // If something went wrong, re-enable the button
                 btn.disabled = false;
             }
         };
