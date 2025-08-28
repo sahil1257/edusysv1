@@ -700,14 +700,9 @@ export function showToast(message, type = 'success') {
 }
 
 
-
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
-    // This line is the fix. It prioritizes the passed 'pageConfig' over the old global variable.
     const config = pageConfig || window.currentPageConfig || {};
-    
     const isEditing = Object.keys(initialData).length > 0;
-    let newProfileImageData = null;
-
     const isProfileModal = ['student', 'teacher', 'staff'].some(keyword => title.toLowerCase().includes(keyword));
     let profileActionsHtml = '';
     let formContainerClasses = 'col-span-1';
@@ -717,6 +712,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
         let avatarSrc, profileName, subtitleHtml = '', actionButtonsHtml = '';
 
         if (isEditing) {
+            // This is correct: profileImage from the DB is a full URL.
             avatarSrc = initialData.profileImage || generateInitialsAvatar(initialData.name);
             profileName = initialData.name;
 
@@ -725,60 +721,28 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 const sectionDetails = store.getMap('sections').get(sectionId);
                 const departmentName = sectionDetails?.subjectId?.departmentId?.name || 'Unassigned';
                 const sectionName = sectionDetails?.name || 'N/A';
-        
-                subtitleHtml = `
-                    <p class="text-slate-400 text-sm">Roll: ${initialData.rollNo || 'N/A'}</p>
-                    <p class="text-slate-400 text-xs mt-1">${departmentName} - Section ${sectionName}</p>
-                `;
+                subtitleHtml = `<p class="text-slate-400 text-sm">Roll: ${initialData.rollNo || 'N/A'}</p><p class="text-slate-400 text-xs mt-1">${departmentName} - Section ${sectionName}</p>`;
             } else if (config.collectionName === 'teachers') {
                 const departmentId = initialData.departmentId?.id || initialData.departmentId;
                 const departmentDetails = store.getMap('departments').get(departmentId);
                 const departmentName = departmentDetails?.name || 'Unassigned';
-
-                // This is the corrected HTML that will display the details you wanted.
-                subtitleHtml = `
-                    <p class="text-slate-400 text-sm">${initialData.email || 'No email provided'}</p>
-                    <p class="text-slate-400 text-xs mt-1">Department: ${departmentName}</p>
-                `;
+                subtitleHtml = `<p class="text-slate-400 text-sm">${initialData.email || 'No email provided'}</p><p class="text-slate-400 text-xs mt-1">Department: ${departmentName}</p>`;
             } else if (config.collectionName === 'staffs') {
                 subtitleHtml = `<p class="text-slate-400">${initialData.jobTitle || 'Staff'}</p>`;
             }
-            
             if (onDeleteItem) {
                 let deleteButtonText = `Delete ${config.title || 'Item'}`;
                 if (config.collectionName === 'staffs') deleteButtonText = 'Delete Staff';
-                actionButtonsHtml = `
-                    <div class="space-y-2 pt-4 border-t border-slate-700">
-                        <button type="button" id="modal-delete-btn" class="w-full text-sm bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2">
-                            <i class="fas fa-trash-alt"></i> ${deleteButtonText}
-                        </button>
-                    </div>`;
+                actionButtonsHtml = `<div class="space-y-2 pt-4 border-t border-slate-700"><button type="button" id="modal-delete-btn" class="w-full text-sm bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2"><i class="fas fa-trash-alt"></i> ${deleteButtonText}</button></div>`;
             }
         } else {
             avatarSrc = generateInitialsAvatar('?');
             profileName = `New ${config.title || 'Profile'}`;
             subtitleHtml = `<p class="text-slate-400 text-sm">Fill in the details to create a profile.</p>`;
         }
-        
-        profileActionsHtml = `
-            <div class="md:col-span-1 space-y-4 text-center p-4 bg-slate-900/50 rounded-lg">
-                <div class="relative group w-24 h-24 mx-auto">
-                    <label for="modal-image-upload" class="cursor-pointer">
-                        <img id="modal-img-preview" src="${avatarSrc}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-slate-700 shadow-lg">
-                        <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i class="fas fa-camera text-xl text-white"></i>
-                        </div>
-                    </label>
-                    <input type="file" id="modal-image-upload" accept="image/*" class="hidden">
-                </div>
-                <div>
-                    <p class="font-bold text-xl text-white">${profileName}</p>
-                    ${subtitleHtml}
-                </div>
-                ${actionButtonsHtml}
-            </div>
-        `;
+        profileActionsHtml = `<div class="md:col-span-1 space-y-4 text-center p-4 bg-slate-900/50 rounded-lg"><div class="relative group w-24 h-24 mx-auto"><label for="modal-image-upload" class="cursor-pointer"><img id="modal-img-preview" src="${avatarSrc}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-slate-700 shadow-lg"><div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-camera text-xl text-white"></i></div></label><input type="file" id="modal-image-upload" accept="image/*,.heic,.heif" class="hidden"></div><div><p class="font-bold text-xl text-white">${profileName}</p>${subtitleHtml}</div>${actionButtonsHtml}</div>`;
     }
+
     
     const createFieldHtml = (field, data) => {
         let value = data[field.name] || field.value || '';
@@ -814,25 +778,39 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
             el.value = initialData[field.name];
         }
     });
-    if (isProfileModal) {
-        document.getElementById('modal-image-upload').addEventListener('change', (event) => {
+       if (isProfileModal) {
+        // This 'change' listener for the preview is correct as you provided it.
+        document.getElementById('modal-image-upload').addEventListener('change', async (event) => {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    newProfileImageData = e.target.result;
-                    document.getElementById('modal-img-preview').src = newProfileImageData;
-                };
-                reader.readAsDataURL(file);
+            if (!file) return;
+            const submitButton = document.getElementById('modal-form').querySelector('button[type="submit"]');
+            const previewImage = document.getElementById('modal-img-preview');
+            const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+            if (isHeic) {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Converting Image...';
+                previewImage.style.filter = 'blur(3px)';
+                try {
+                    const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.8 });
+                    previewImage.src = URL.createObjectURL(convertedBlob);
+                } catch (error) {
+                    showToast("Could not convert the HEIC image.", "error");
+                    event.target.value = "";
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Save Changes';
+                    previewImage.style.filter = 'none';
+                }
+            } else {
+                previewImage.src = URL.createObjectURL(file);
             }
         });
         const deleteBtn = document.getElementById('modal-delete-btn');
-        if (deleteBtn && onDeleteItem) {
-            deleteBtn.onclick = () => onDeleteItem(initialData.id);
-        }
+        if (deleteBtn && onDeleteItem) { deleteBtn.onclick = () => onDeleteItem(initialData.id); }
     }
+
     document.getElementById('modal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();       
+        e.preventDefault();
         const formData = new FormData();
         const form = e.target;
         formFields.forEach(field => {
@@ -840,13 +818,29 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 formData.append(field.name, form.elements[field.name].value);
             }
         });
+
+        // --- ANALYSIS OF THE FIX: THIS IS THE FINAL, CORRECTED LOGIC ---
         const imageUploadInput = document.getElementById('modal-image-upload');
         if (imageUploadInput && imageUploadInput.files.length > 0) {
-            formData.append('profileImage', imageUploadInput.files[0]);
+            const file = imageUploadInput.files[0];
+            const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+            // 1. Check if the selected file is HEIC.
+            if (isHeic) {
+                // 2. If it is, we convert it to a JPEG Blob right before submission.
+                const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.8 });
+                // 3. We append the CONVERTED blob to FormData, giving it a new filename.
+                formData.append('profileImage', convertedBlob, 'converted.jpeg');
+            } else {
+                // 4. If it's a standard format (JPG, PNG), we append the original file directly.
+                formData.append('profileImage', file);
+            }
         }
+        
         await onSubmit(formData);
         closeAnimatedModal(ui.modal);
     });
+
 
     const modalContent = ui.modal.querySelector('.modal-content');
     if (isProfileModal) {
@@ -861,8 +855,6 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
         }
     }, { once: true });
 }
-
-
 
 export function exportToCsv(filename, headers, rows) {
     const sanitizeCell = (cell) => {

@@ -63,41 +63,65 @@ export async function renderProfilePage() {
 
     document.getElementById('profile-image-upload').addEventListener('change', async function(event) {
         const file = event.target.files[0];
-        if (file) {
+        if (!file) return;
+
+        let fileToUpload = file;
+        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+        // Show a loading state on the image
+        const previewImage = document.getElementById('profile-img-preview');
+        const originalSrc = previewImage.src;
+        previewImage.style.filter = 'blur(3px) brightness(0.7)';
+
+        try {
+            if (isHeic) {
+                showToast("Converting HEIC image...", "info");
+                // Convert HEIC to JPEG Blob
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: "image/jpeg",
+                    quality: 0.8,
+                });
+                fileToUpload = convertedBlob;
+            }
+
             const formData = new FormData();
-            formData.append('profileImage', file);
+            // Append the correct file (original or converted)
+            // If it was a Blob, we must provide a filename.
+            formData.append('profileImage', fileToUpload, isHeic ? 'converted.jpeg' : file.name);
 
-            let collection = null;
-            let id = null;
-
-            if (currentUser.role === 'Student') {
-                collection = 'students';
-                id = currentUser.studentId;
-            } else if (currentUser.role === 'Teacher') {
-                collection = 'teachers';
-                id = currentUser.teacherId;
-            } else { // Handle Admin, Accountant, Librarian, Staff
-                collection = 'staffs';
+            let collection = null, id = null;
+            if (currentUser.role === 'Student') { collection = 'students'; id = currentUser.studentId; }
+            else if (currentUser.role === 'Teacher') { collection = 'teachers'; id = currentUser.teacherId; }
+            else { 
                 const user = store.get('users').find(u => u.id === currentUser.id);
-                id = user?.staffId;
+                if (user?.staffId) { collection = 'staffs'; id = user.staffId; }
             }
 
             if (collection && id) {
                 const updatedProfile = await apiService.update(collection, id, formData);
                 if (updatedProfile) {
                     currentUser.profileImage = updatedProfile.profileImage;
-                    ui.headerUserAvatar.src = updatedProfile.profileImage; // Update header avatar
+                    ui.headerUserAvatar.src = updatedProfile.profileImage;
                     sessionStorage.setItem('sms_user_pro', JSON.stringify(currentUser));
                     
-                    // A targeted refresh is better than reloading the whole page
-                    document.getElementById('profile-img-preview').src = updatedProfile.profileImage;
+                    // Update the preview with the final URL from the server
+                    previewImage.src = updatedProfile.profileImage;
                     showToast('Profile image updated successfully!', 'success');
                 }
             } else {
-                showToast('Could not determine profile to update.', 'error');
+                 showToast('Could not determine profile type to update.', 'error');
             }
+        } catch (error) {
+            console.error("Image upload/conversion failed:", error);
+            showToast("Failed to process image.", "error");
+            previewImage.src = originalSrc; // Revert to original image on failure
+        } finally {
+            // Always remove the loading state
+            previewImage.style.filter = 'none';
         }
     });
+
 
     const editBtn = document.getElementById('edit-profile-btn');
     if (editBtn) {
