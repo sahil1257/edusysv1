@@ -248,8 +248,7 @@ const createAdvancedSearchPanel = () => {
         ];
         if (!isEditing) { formFields.push({ name: 'password', label: 'Initial Password', type: 'password', required: true }); }
 
-        const onSubmit = async (formData) => {
-            if (!isEditing) formData.departmentId = state.selectedDeptId;
+        const onSubmit = async (formData) => {          
             try {
                 if (isEditing) {
                     await apiService.update('teachers', teacherData.id, formData);
@@ -259,13 +258,7 @@ const createAdvancedSearchPanel = () => {
                     if (!newTeacher || !newTeacher.id) {
                         showToast("Could not create teacher.", "error"); return;
                     }
-                    // --- FIX: Pass the profileImage from the created teacher record to the new user record ---
-                    await apiService.create('users', {
-                        name: newTeacher.name, email: newTeacher.email, password: formData.password, 
-                        role: 'Teacher', teacherId: newTeacher.id,
-                        profileImage: newTeacher.profileImage || null
-                    });
-                    // --- END OF FIX ---
+                    await apiService.create('users', { name: newTeacher.name, email: newTeacher.email, password: formData.password, role: 'Teacher', teacherId: newTeacher.id });
                     showToast('Teacher added successfully!', 'success');
                 }
                 await store.refresh('teachers');
