@@ -3,13 +3,8 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
+const fs = require('fs'); // Import the file system module
 
-const fs = require('fs');
-const uploadDir = path.join(__dirname, 'uploads');
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true }); // Still use recursive for safety
-}
 // Load environment variables
 dotenv.config();
 
@@ -22,21 +17,31 @@ const app = express();
 app.use(cors()); // Enable Cross-Origin Resource Sharing
 app.use(express.json({ limit: '50mb' })); // To parse JSON request bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // To parse URL-encoded bodies
+
+// --- IMPORTANT: ADDED CODE FOR DIRECTORY CREATION ---
+// This code ensures the 'uploads' directory exists before the server starts
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('Created the "uploads" directory.');
+}
+// --- END OF ADDED CODE ---
+
 app.get('/', (req, res) => {
-    res.status(200).json({ message: 'EduSys Pro API is online and running.Thanks For visiting......' });
+  res.status(200).json({ message: 'EduSys Pro API is online and running.Thanks For visiting......' });
 });
+
 // In server.js, near the other app.use() calls
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
 // --- API ROUTES ---
-app.use('/', require('./routes/auth.routes')); 
+app.use('/', require('./routes/auth.routes'));
 app.use('/users', require('./routes/user.routes'));
 app.use('/students', require('./routes/student.routes'));
 app.use('/teachers', require('./routes/teacher.routes'));
-app.use('/staffs', require('./routes/staff.routes')); 
+app.use('/staffs', require('./routes/staff.routes'));
 app.use('/subjects', require('./routes/subject.routes'));
-app.use('/sections', require('./routes/section.routes')); 
+app.use('/sections', require('./routes/section.routes'));
 app.use('/departments', require('./routes/department.routes'));
 app.use('/timetable', require('./routes/timetable.routes'));
 app.use('/notices', require('./routes/notice.routes'));
