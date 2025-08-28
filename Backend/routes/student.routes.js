@@ -1,7 +1,8 @@
-// routes/student.routes.js
+// in routes/student.routes.js
+
 const express = require('express');
 const router = express.Router();
-const upload = require('../middleware/uploadMiddleware'); // <-- IMPORT THE MIDDLEWARE
+const upload = require('../middleware/uploadMiddleware'); // Middleware is already imported
 
 const {
     getStudents,
@@ -15,19 +16,16 @@ const {
 
 router.route('/')
     .get(getStudents)
-    .post(createStudent);
+    // --- THIS IS THE FIX ---
+    // We add the middleware here to allow the create route to handle file uploads.
+    .post(upload.single('profileImage'), createStudent);
 
-// --- MODIFIED SECTION ---
-// Route for bulk CREATION
 router.post('/bulk', bulkCreateStudents);
-
-// NEW: Add this bulk DELETE route
 router.delete('/bulk', bulkDeleteStudents);
-// ------------------------
 
 router.route('/:id')
     .get(getStudentById)
-    .put(upload.single('profileImage'), updateStudent) // <-- ADD THE MIDDLEWARE HERE
+    .put(upload.single('profileImage'), updateStudent) // This was already correct
     .delete(deleteStudent);
 
 module.exports = router;
