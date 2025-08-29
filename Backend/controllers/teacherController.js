@@ -6,8 +6,6 @@ const Department = require('../models/department.model.js');
 const sharp = require('sharp');
 const { put } = require('@vercel/blob'); // Vercel Blob SDK
 
-// ANALYSIS: The same fix is applied here: the old `path` and `fs` logic is removed.
-
 const getTeachers = asyncHandler(async (req, res) => {
     const teachers = await Teacher.find({}).populate('departmentId', 'name');
     res.json(teachers);
@@ -23,7 +21,9 @@ const getTeacherById = asyncHandler(async (req, res) => {
     }
 });
 
+// --- THIS FUNCTION IS NOW UPGRADED ---
 const createTeacher = asyncHandler(async (req, res) => {
+    // 1. Create a new Mongoose document in memory. This assigns a unique _id.
     const teacher = new Teacher({
         name: req.body.name,
         email: req.body.email,
@@ -34,7 +34,30 @@ const createTeacher = asyncHandler(async (req, res) => {
         baseSalary: req.body.baseSalary,
         joiningDate: req.body.joiningDate || new Date(),
     });
+
+    // 2. Check if a file was uploaded via multer.
+    if (req.file) {
+        // 3. Use the in-memory _id to create a unique filename.
+        const filename = `teachers/${teacher._id}-${Date.now()}.webp`;
+        
+        // 4. Process the image buffer with sharp for optimization.
+        const imageBuffer = await sharp(req.file.buffer)
+            .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+            .toFormat('webp')
+            .webp({ quality: 80 })
+            .toBuffer();
+
+        // 5. Upload the processed image to Vercel Blob.
+        const blob = await put(filename, imageBuffer, { access: 'public' });
+        
+        // 6. Assign the returned public URL to the teacher document.
+        teacher.profileImage = blob.url;
+    }
+
+    // 7. Save the final document (with or without the image URL) to the database.
     const createdTeacher = await teacher.save();
+    
+    // 8. Return the complete, saved teacher object.
     res.status(201).json(createdTeacher);
 });
 
@@ -43,7 +66,6 @@ const updateTeacher = asyncHandler(async (req, res) => {
     if (teacher) {
         Object.assign(teacher, req.body);
 
-        // --- NEW: Image Processing and Cloud Upload Logic ---
         if (req.file) {
             const filename = `teachers/${teacher._id}-${Date.now()}.webp`;
             

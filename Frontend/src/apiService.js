@@ -53,11 +53,19 @@ export const apiService = (() => {
         const url = subCollection ? `${baseUrl}/${subCollection}` : baseUrl;
         
         try {
-            const response = await fetch(url, {
+            // --- THIS IS THE FIX ---
+            // The logic is now identical to the `update` function, making it robust.
+            const isFormData = data instanceof FormData;
+    
+            const fetchOptions = {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
+                // The browser sets the correct 'multipart/form-data' header automatically for FormData.
+                headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+                body: isFormData ? data : JSON.stringify(data),
+            };
+            // --- END OF FIX ---
+    
+            const response = await fetch(url, fetchOptions);
             if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
             return mapId(await response.json());
         } catch (error) {
@@ -107,23 +115,15 @@ export const apiService = (() => {
 const update = async (collection, id, data, subCollection = null) => {
     const baseUrl = getBaseUrlForCollection(collection);
     const url = subCollection ? `${baseUrl}/${subCollection}/${id}` : `${baseUrl}/${id}`;    
-    try {
-        // --- THIS IS THE UPGRADE ---
-        // 1. We check if the data is a FormData object. This will be true when uploading an image.
+    try {       
         const isFormData = data instanceof FormData;
-
-        // 2. We construct the options for our fetch request.
+      // 2. We construct the options for our fetch request.
         const fetchOptions = {
             method: 'PUT',
-            // If it's FormData, we do NOT set the Content-Type header. The browser does this automatically,
-            // including the necessary 'boundary' part, which is crucial for the server to parse the file.
-            // If it's not FormData, we set it to 'application/json' as before.
+          
             headers: isFormData ? {} : { 'Content-Type': 'application/json' },
-
-            // If it's FormData, we send it directly. Otherwise, we stringify the JSON object.
             body: isFormData ? data : JSON.stringify(data),
         };
-
         const response = await fetch(url, fetchOptions);
         if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
         return mapId(await response.json());

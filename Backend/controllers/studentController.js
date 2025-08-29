@@ -6,9 +6,6 @@ const User = require('../models/user.model.js');
 const sharp = require('sharp');
 const { put } = require('@vercel/blob'); // Vercel Blob SDK
 
-// ANALYSIS: The old, problematic filesystem code that used `path` and `fs` has been completely removed.
-// This controller now only contains logic that is compatible with a serverless environment.
-
 const populateStudentDetails = (query) => {
     return query.populate({
         path: 'sectionId',
@@ -39,7 +36,9 @@ const getStudentById = asyncHandler(async (req, res) => {
     }
 });
 
+// --- THIS FUNCTION IS NOW UPGRADED ---
 const createStudent = asyncHandler(async (req, res) => {
+    // 1. Create a new Mongoose document in memory. This assigns a unique _id.
     const student = new Student({
         name: req.body.name,
         email: req.body.email,
@@ -53,7 +52,30 @@ const createStudent = asyncHandler(async (req, res) => {
         address: req.body.address,
         enrollmentDate: req.body.enrollmentDate || new Date(),
     });
+
+    // 2. Check if a file was uploaded via multer.
+    if (req.file) {
+        // 3. Use the in-memory _id to create a unique filename.
+        const filename = `students/${student._id}-${Date.now()}.webp`;
+        
+        // 4. Process the image buffer with sharp for optimization.
+        const imageBuffer = await sharp(req.file.buffer)
+            .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+            .toFormat('webp')
+            .webp({ quality: 80 })
+            .toBuffer();
+
+        // 5. Upload the processed image to Vercel Blob.
+        const blob = await put(filename, imageBuffer, { access: 'public' });
+        
+        // 6. Assign the returned public URL to the student document.
+        student.profileImage = blob.url;
+    }
+    
+    // 7. Save the final document (with or without the image URL) to the database.
     const createdStudent = await student.save();
+
+    // 8. Return the complete, saved student object.
     res.status(201).json(createdStudent);
 });
 
@@ -62,28 +84,18 @@ const updateStudent = asyncHandler(async (req, res) => {
     if (student) {
         Object.assign(student, req.body);
 
-        // --- NEW: Image Processing and Cloud Upload Logic ---
         if (req.file) {
-            // Define a unique filename for the blob
             const filename = `students/${student._id}-${Date.now()}.webp`;
-            
-            // Process the image buffer with sharp: resize, convert to WebP, and compress
             const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
-                .webp({ quality: 80 }) // Adjust quality as needed
+                .webp({ quality: 80 })
                 .toBuffer();
-
-            // Upload the processed buffer to Vercel Blob
             const blob = await put(filename, imageBuffer, { access: 'public' });
-            
-            // Save the public URL from Vercel Blob to the student's profile
-            student.profileImage = blob.url; 
+            student.profileImage = blob.url; // Save the full URL
         }
 
         const updatedStudent = await student.save();
-
-        // Also update the associated user record with the new name, email, and image
         const user = await User.findOne({ studentId: student._id });
         if (user) {
             user.name = updatedStudent.name;
