@@ -6,8 +6,7 @@ const User = require('../models/user.model.js');
 const sharp = require('sharp');
 const { put } = require('@vercel/blob'); // Vercel Blob SDK
 
-// --- ANALYSIS ---
-// The old, problematic filesystem code that used `path` and `fs` has been completely removed.
+// ANALYSIS: The old, problematic filesystem code that used `path` and `fs` has been completely removed.
 // This controller now only contains logic that is compatible with a serverless environment.
 
 const populateStudentDetails = (query) => {
@@ -63,18 +62,28 @@ const updateStudent = asyncHandler(async (req, res) => {
     if (student) {
         Object.assign(student, req.body);
 
+        // --- NEW: Image Processing and Cloud Upload Logic ---
         if (req.file) {
-            const filename = `${Date.now()}-${student._id}.webp`;
+            // Define a unique filename for the blob
+            const filename = `students/${student._id}-${Date.now()}.webp`;
+            
+            // Process the image buffer with sharp: resize, convert to WebP, and compress
             const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
-                .webp({ quality: 80 })
+                .webp({ quality: 80 }) // Adjust quality as needed
                 .toBuffer();
+
+            // Upload the processed buffer to Vercel Blob
             const blob = await put(filename, imageBuffer, { access: 'public' });
-            student.profileImage = blob.url; // Save the full URL
+            
+            // Save the public URL from Vercel Blob to the student's profile
+            student.profileImage = blob.url; 
         }
 
         const updatedStudent = await student.save();
+
+        // Also update the associated user record with the new name, email, and image
         const user = await User.findOne({ studentId: student._id });
         if (user) {
             user.name = updatedStudent.name;

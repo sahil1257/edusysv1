@@ -39,16 +39,21 @@ const updateStaff = asyncHandler(async (req, res) => {
     const staff = await Staff.findById(req.params.id);
     if (staff) {
         Object.assign(staff, req.body);
+        
+        // --- NEW: Image Processing and Cloud Upload Logic ---
         if (req.file) {
-            const filename = `${Date.now()}-${staff._id}.webp`;
+            const filename = `staff/${staff._id}-${Date.now()}.webp`;
+
             const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
                 .webp({ quality: 80 })
                 .toBuffer();
+
             const blob = await put(filename, imageBuffer, { access: 'public' });
             staff.profileImage = blob.url;
         }
+
         const updatedStaff = await staff.save();
         const user = await User.findOne({ staffId: staff._id });
         if (user) {

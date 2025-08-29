@@ -6,8 +6,7 @@ const Department = require('../models/department.model.js');
 const sharp = require('sharp');
 const { put } = require('@vercel/blob'); // Vercel Blob SDK
 
-// --- ANALYSIS ---
-// The same fix is applied here: the old `path` and `fs` logic is removed.
+// ANALYSIS: The same fix is applied here: the old `path` and `fs` logic is removed.
 
 const getTeachers = asyncHandler(async (req, res) => {
     const teachers = await Teacher.find({}).populate('departmentId', 'name');
@@ -44,13 +43,16 @@ const updateTeacher = asyncHandler(async (req, res) => {
     if (teacher) {
         Object.assign(teacher, req.body);
 
+        // --- NEW: Image Processing and Cloud Upload Logic ---
         if (req.file) {
-            const filename = `${Date.now()}-${teacher._id}.webp`;
+            const filename = `teachers/${teacher._id}-${Date.now()}.webp`;
+            
             const imageBuffer = await sharp(req.file.buffer)
                 .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
                 .toFormat('webp')
                 .webp({ quality: 80 })
                 .toBuffer();
+
             const blob = await put(filename, imageBuffer, { access: 'public' });
             teacher.profileImage = blob.url;
         }

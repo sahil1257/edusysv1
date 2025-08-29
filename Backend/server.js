@@ -15,8 +15,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' })); // To parse URL-
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'EduSys Pro API is online and running.Thanks For visiting......' });
 });
-// In server.js, near the other app.use() calls
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// ANALYSIS: The local static file server is removed as it's not compatible with Vercel's serverless environment.
+// Images will now be served directly from Vercel Blob's global CDN.
 
 // --- API ROUTES ---
 app.use('/', require('./routes/auth.routes')); 

@@ -34,7 +34,7 @@ function loadScriptOnce(src) {
 
 async function ensureHeic2AnyLoaded() {
     if (window.heic2any) return window.heic2any;
-    await loadScriptOnce('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+    // The heic2any script is now loaded from the CDN specified in index.html
     if (!window.heic2any) throw new Error('heic2any failed to load');
     return window.heic2any;
 }
@@ -124,7 +124,6 @@ function base64EncodeUnicode(str) {
 }
 
 // ----------------------------------------------------------------------
-
 export function getSkeletonLoaderHTML(type = 'table') {
     if (type === 'dashboard') {
         return `
@@ -764,6 +763,7 @@ export function showConfirmationModal(text, onConfirm) {
     openAnimatedModal(ui.confirmModal);
 }
 
+
 // in src/utils/helpers.js
 
 export function openFormModal(title, formFields, onSubmit, initialData = {}, onDeleteItem = null, pageConfig = null) {
@@ -771,7 +771,8 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
     const config = pageConfig || window.currentPageConfig || {};
     
     const isEditing = Object.keys(initialData).length > 0;
-    let newProfileImageData = null;
+    // --- NEW: Use a variable to hold the processed image data (as a Blob) ---
+    let newProfileImageBlob = null;
 
     const isProfileModal = ['student', 'teacher', 'staff'].some(keyword => title.toLowerCase().includes(keyword));
     let profileActionsHtml = '';
@@ -834,7 +835,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                             <i class="fas fa-camera text-xl text-white"></i>
                         </div>
                     </label>
-                    <input type="file" id="modal-image-upload" accept="image/*" class="hidden">
+                    <input type="file" id="modal-image-upload" accept="image/*,.heic,.heif" class="hidden">
                 </div>
                 <div>
                     <p class="font-bold text-xl text-white">${profileName}</p>
@@ -884,7 +885,7 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
         }
     });
 
-    // Image handling with HEIC conversion and compression
+    // --- UPGRADED: Image handling with client-side compression ---
     if (isProfileModal) {
         const imgInput = document.getElementById('modal-image-upload');
         if (imgInput) {
@@ -904,23 +905,19 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
                 if (previewImage) previewImage.style.filter = 'blur(3px)';
 
                 try {
-                    const { dataUrl } = await compressAndNormalizeImage(file, {
-                        maxWidth: 800,
-                        maxHeight: 800,
-                        quality: 0.8,
-                        outputType: 'image/jpeg'
+                    // Call the new helper function to handle HEIC and compression
+                    const { blob, dataUrl } = await compressAndNormalizeImage(file, {
+                        maxWidth: 800, maxHeight: 800, quality: 0.8, outputType: 'image/jpeg'
                     });
 
-                    newProfileImageData = dataUrl;
-                    if (previewImage) previewImage.src = dataUrl;
+                    newProfileImageBlob = blob; // Store the compressed Blob for submission
+                    if (previewImage) previewImage.src = dataUrl; // Update the preview
                 } catch (err) {
                     console.error('Image processing failed:', err);
-                    const isHeic = isHeicFile(file);
-                    showToast(isHeic
-                        ? 'Could not convert the HEIC image. Please try another image format.'
-                        : 'Could not process the image. Please try a different image.', 'error');
-                    event.target.value = '';
+                    showToast('Could not process the image. Please try a different image.', 'error');
+                    event.target.value = ''; // Reset file input
                 } finally {
+                    // Restore button state
                     if (submitButton) {
                         submitButton.disabled = false;
                         if (prevBtnHtml !== null) submitButton.innerHTML = prevBtnHtml;
@@ -936,25 +933,28 @@ export function openFormModal(title, formFields, onSubmit, initialData = {}, onD
         }
     }
 
-    // Submit as object (keeps existing flows intact). If image uploaded, include base64 data URL.
+    // --- UPGRADED: Form submission now handles FormData for file uploads ---
     const modalForm = document.getElementById('modal-form');
     if (modalForm) {
         modalForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = Object.fromEntries(new FormData(e.target));
             
-            // --- FIX [2/2]: PRESERVE EXISTING IMAGE ON EDIT ---
-            if (newProfileImageData) {
-                // A new image was uploaded, so we use it.
-                formData.profileImage = newProfileImageData;
-            } else if (isEditing && initialData.profileImage) {
-                // No new image was uploaded, but we are editing an existing record that has an image.
-                // We must add the old image URL back to the form data to prevent it from being erased.
-                formData.profileImage = initialData.profileImage;
+            // If an image was processed, we must send as FormData.
+            if (newProfileImageBlob) {
+                const formData = new FormData(e.target);
+                // The filename is important for multer on the backend
+                formData.append('profileImage', newProfileImageBlob, 'profile.jpg');
+                await onSubmit(formData);
+            } else {
+                // Otherwise, send as a plain object as before.
+                const formData = Object.fromEntries(new FormData(e.target));
+                // If editing but not changing the image, ensure the old URL isn't erased.
+                if (isEditing && initialData.profileImage) {
+                    formData.profileImage = initialData.profileImage;
+                }
+                await onSubmit(formData);
             }
-            // --- END OF FIX ---
-
-            await onSubmit(formData);
+            
             closeAnimatedModal(ui.modal);
         });
     }

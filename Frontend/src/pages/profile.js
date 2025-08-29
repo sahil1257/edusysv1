@@ -4,7 +4,7 @@ import { apiService } from '../apiService.js';
 import { store } from '../store.js';
 import { currentUser, ui } from '../ui.js';
 import { showToast } from '../utils/helpers.js';
-import { generateInitialsAvatar, openChangePasswordModal, openFormModal } from '../utils/helpers.js';
+import { generateInitialsAvatar, openChangePasswordModal, openFormModal, compressAndNormalizeImage } from '../utils/helpers.js';
 
 export async function renderProfilePage() {
     let profileData = { ...currentUser };
@@ -58,37 +58,23 @@ export async function renderProfilePage() {
              src="${profileData.profileImage || generateInitialsAvatar(profileData.name)}" 
              alt="Profile Picture" 
              class="w-32 h-32 rounded-2xl object-cover border-4 border-blue-500/30 shadow-xl transition-all duration-500 group-hover:border-blue-400 group-hover:scale-105">
-        <label for="profile-image-upload" class="absolute inset-0 flex items-center justify-center bg-black/70 rounded-2xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-300"><div class="text-center p-2"><i class="fas fa-camera text-2xl text-white mb-1"></i><p class="text-xs text-white font-medium">Change Photo</p></div></label><input type="file" id="profile-image-upload" accept="image/*" class="hidden"></div><div class="flex-grow text-center sm:text-left"><h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent">${profileData.name}</h1><div class="inline-block mt-2 px-4 py-1 bg-blue-900/30 rounded-full border border-blue-700/50 text-blue-300 text-sm font-medium">${profileData.role}</div>${profileData.bio ? `<p class="mt-3 text-slate-300 max-w-lg">${profileData.bio}</p>` : ''}</div><div class="flex-shrink-0 flex flex-col gap-3 w-full sm:w-auto"><button id="edit-profile-btn" class="relative overflow-hidden w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"><span class="relative z-10"><i class="fas fa-edit"></i> Edit Profile</span></button><button id="change-password-btn" class="relative overflow-hidden w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-slate-500/20 flex items-center justify-center gap-2"><span class="relative z-10"><i class="fas fa-key"></i> Change Password</span></button></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="relative bg-gradient-to-br from-slate-800/80 to-slate-900/90 backdrop-blur-sm border border-slate-700/50 p-6 rounded-3xl shadow-xl overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-transparent"></div><h3 class="text-xl font-bold text-white mb-5 flex items-center gap-2"><i class="fas fa-address-card text-blue-400"></i><span>Contact Information</span></h3><div class="space-y-4">${contactInfoHtml}</div></div><div class="relative bg-gradient-to-br from-slate-800/80 to-slate-900/90 backdrop-blur-sm border border-slate-700/50 p-6 rounded-3xl shadow-xl overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-transparent"></div><h3 class="text-xl font-bold text-white mb-5 flex items-center gap-2"><i class="fas ${currentUser.role === 'Student' ? 'fa-graduation-cap' : currentUser.role === 'Teacher' ? 'fa-chalkboard-teacher' : 'fa-cog'} text-blue-400"></i><span>${currentUser.role === 'Student' ? 'Academic Details' : (currentUser.role === 'Teacher' ? 'Professional Information' : 'System Information')}</span></h3><div class="space-y-4">${roleSpecificInfoHtml}</div></div></div><div class="text-center text-slate-500 text-sm mt-8"><p>Member since ${new Date(currentUser.createdAt || Date.now()).toLocaleDateString()}</p></div></div>`;
+        <label for="profile-image-upload" class="absolute inset-0 flex items-center justify-center bg-black/70 rounded-2xl cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-300"><div class="text-center p-2"><i class="fas fa-camera text-2xl text-white mb-1"></i><p class="text-xs text-white font-medium">Change Photo</p></div></label><input type="file" id="profile-image-upload" accept="image/*,.heic,.heif" class="hidden"></div><div class="flex-grow text-center sm:text-left"><h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent">${profileData.name}</h1><div class="inline-block mt-2 px-4 py-1 bg-blue-900/30 rounded-full border border-blue-700/50 text-blue-300 text-sm font-medium">${profileData.role}</div>${profileData.bio ? `<p class="mt-3 text-slate-300 max-w-lg">${profileData.bio}</p>` : ''}</div><div class="flex-shrink-0 flex flex-col gap-3 w-full sm:w-auto"><button id="edit-profile-btn" class="relative overflow-hidden w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"><span class="relative z-10"><i class="fas fa-edit"></i> Edit Profile</span></button><button id="change-password-btn" class="relative overflow-hidden w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-slate-500/20 flex items-center justify-center gap-2"><span class="relative z-10"><i class="fas fa-key"></i> Change Password</span></button></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="relative bg-gradient-to-br from-slate-800/80 to-slate-900/90 backdrop-blur-sm border border-slate-700/50 p-6 rounded-3xl shadow-xl overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-transparent"></div><h3 class="text-xl font-bold text-white mb-5 flex items-center gap-2"><i class="fas fa-address-card text-blue-400"></i><span>Contact Information</span></h3><div class="space-y-4">${contactInfoHtml}</div></div><div class="relative bg-gradient-to-br from-slate-800/80 to-slate-900/90 backdrop-blur-sm border border-slate-700/50 p-6 rounded-3xl shadow-xl overflow-hidden"><div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-transparent"></div><h3 class="text-xl font-bold text-white mb-5 flex items-center gap-2"><i class="fas ${currentUser.role === 'Student' ? 'fa-graduation-cap' : currentUser.role === 'Teacher' ? 'fa-chalkboard-teacher' : 'fa-cog'} text-blue-400"></i><span>${currentUser.role === 'Student' ? 'Academic Details' : (currentUser.role === 'Teacher' ? 'Professional Information' : 'System Information')}</span></h3><div class="space-y-4">${roleSpecificInfoHtml}</div></div></div><div class="text-center text-slate-500 text-sm mt-8"><p>Member since ${new Date(currentUser.createdAt || Date.now()).toLocaleDateString()}</p></div></div>`;
     ui.contentArea.innerHTML = profileHtml;
 
     document.getElementById('profile-image-upload').addEventListener('change', async function(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        let fileToUpload = file;
-        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-
-        // Show a loading state on the image
         const previewImage = document.getElementById('profile-img-preview');
-        const originalSrc = previewImage.src;
-        previewImage.style.filter = 'blur(3px) brightness(0.7)';
+        previewImage.style.filter = 'blur(3px) brightness(0.7)'; // Show loading state
 
         try {
-            if (isHeic) {
-                showToast("Converting HEIC image...", "info");
-                // Convert HEIC to JPEG Blob
-                const convertedBlob = await heic2any({
-                    blob: file,
-                    toType: "image/jpeg",
-                    quality: 0.8,
-                });
-                fileToUpload = convertedBlob;
-            }
+            const { blob } = await compressAndNormalizeImage(file, {
+                maxWidth: 800, maxHeight: 800, quality: 0.8
+            });
 
             const formData = new FormData();
-            // Append the correct file (original or converted)
-            // If it was a Blob, we must provide a filename.
-            formData.append('profileImage', fileToUpload, isHeic ? 'converted.jpeg' : file.name);
+            formData.append('profileImage', blob, 'profile.jpg');
 
             let collection = null, id = null;
             if (currentUser.role === 'Student') { collection = 'students'; id = currentUser.studentId; }
@@ -105,23 +91,19 @@ export async function renderProfilePage() {
                     ui.headerUserAvatar.src = updatedProfile.profileImage;
                     sessionStorage.setItem('sms_user_pro', JSON.stringify(currentUser));
                     
-                    // Update the preview with the final URL from the server
-                    previewImage.src = updatedProfile.profileImage;
+                    previewImage.src = updatedProfile.profileImage; // Update preview with final URL
                     showToast('Profile image updated successfully!', 'success');
                 }
             } else {
                  showToast('Could not determine profile type to update.', 'error');
             }
         } catch (error) {
-            console.error("Image upload/conversion failed:", error);
-            showToast("Failed to process image.", "error");
-            previewImage.src = originalSrc; // Revert to original image on failure
+            console.error("Image upload failed:", error);
+            showToast("Failed to update image.", "error");
         } finally {
-            // Always remove the loading state
-            previewImage.style.filter = 'none';
+            previewImage.style.filter = 'none'; // Remove loading state
         }
     });
-
 
     const editBtn = document.getElementById('edit-profile-btn');
     if (editBtn) {

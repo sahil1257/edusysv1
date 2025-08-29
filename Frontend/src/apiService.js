@@ -107,15 +107,23 @@ export const apiService = (() => {
 const update = async (collection, id, data, subCollection = null) => {
     const baseUrl = getBaseUrlForCollection(collection);
     const url = subCollection ? `${baseUrl}/${subCollection}/${id}` : `${baseUrl}/${id}`;    
-    try {       
+    try {
+        // --- THIS IS THE UPGRADE ---
+        // 1. We check if the data is a FormData object. This will be true when uploading an image.
         const isFormData = data instanceof FormData;
-      // 2. We construct the options for our fetch request.
+
+        // 2. We construct the options for our fetch request.
         const fetchOptions = {
             method: 'PUT',
-          
+            // If it's FormData, we do NOT set the Content-Type header. The browser does this automatically,
+            // including the necessary 'boundary' part, which is crucial for the server to parse the file.
+            // If it's not FormData, we set it to 'application/json' as before.
             headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+
+            // If it's FormData, we send it directly. Otherwise, we stringify the JSON object.
             body: isFormData ? data : JSON.stringify(data),
         };
+
         const response = await fetch(url, fetchOptions);
         if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
         return mapId(await response.json());
