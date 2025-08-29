@@ -569,16 +569,11 @@ export async function renderStudentsPage() {
         });
     };
 
-   // in src/pages/students.js
-
-// ... (keep all the existing code at the top of the file)
-
 // --- THIS IS THE FUNCTION TO MODIFY ---
 const openStudentForm = (studentData = null) => {
     const isEditing = !!studentData;
     const title = isEditing ? `Edit Student Profile` : "Add New Student";
 
-    // ... (keep the logic for building formFields exactly as it is)
     const allDepartments = store.get("departments");
     const allSections = store.get("sections");
     let currentSectionId = studentData?.sectionId?.id || studentData?.sectionId;
@@ -611,31 +606,45 @@ const openStudentForm = (studentData = null) => {
     }
     
     const onSubmitHandler = async (formData) => {
-        delete formData.department;
+        // --- THIS IS THE FIX ---
+        // 1. Determine if formData is a FormData object or a plain object.
+        const isMultiPart = formData instanceof FormData;
+        // 2. Safely get the password value.
+        const password = isMultiPart ? formData.get('password') : formData.password;
+        // --- END OF FIX ---
+
+        delete formData.department; // This is a helper field and should not be sent to the backend.
+
         try {
             if (isEditing) {
+                // For editing, we don't need the password logic.
                 await apiService.update("students", studentData.id, formData);
                 showToast("Student updated successfully!", "success");
             } else {
+                // First, create the student profile. This might include an image.
                 const newStudent = await apiService.create("students", formData);
                 if (!newStudent || !newStudent.id) {
-                    showToast("Could not create student.", "error");
+                    showToast("Could not create student profile.", "error");
                     return;
                 }
-                // --- FIX: Pass the profileImage from the created student record to the new user record ---
+                
+                // Then, create the user account with the correctly retrieved password.
                 await apiService.create("users", {
-                    name: newStudent.name, email: newStudent.email, password: formData.password,
-                    role: "Student", studentId: newStudent.id,
+                    name: newStudent.name, 
+                    email: newStudent.email, 
+                    password: password, // Use the safely retrieved password.
+                    role: "Student", 
+                    studentId: newStudent.id,
                     profileImage: newStudent.profileImage || null 
                 });
-                // --- END OF FIX ---
                 showToast("Student added successfully!", "success");
             }
+            // Refresh local data and UI
             await store.refresh("students");
             closeAnimatedModal(ui.modal);
             mainRender(); 
         } catch (error) {
-            showToast("Operation failed.", "error");
+            showToast("Operation failed. Please check the console.", "error");
             console.error("Form submission error:", error);
         }
     };
@@ -656,7 +665,6 @@ const openStudentForm = (studentData = null) => {
         }
         : null;
 
-    // We create and pass a config object so the modal knows it's for a 'student'.
     const modalConfig = { collectionName: 'students', title: 'Student' };
     openFormModal(title, formFields, onSubmitHandler, studentData || {}, onDeleteHandler, modalConfig);
     
@@ -675,7 +683,6 @@ const openStudentForm = (studentData = null) => {
     }, 100);
 };
 
-// ... (keep all other functions in the file, like mainRender, etc.)
     // --- Bulk Insert Function ---
     const insertDocument = () => {
         openBulkInsertModal(

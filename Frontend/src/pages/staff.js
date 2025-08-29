@@ -43,21 +43,30 @@ export async function renderStaffPage() {
         hideAddButton: false,
         search: true,
         searchPlaceholder: "Search by name, role, etc...",
+        // --- THIS IS THE MODIFIED FUNCTION ---
         customAddFunction: () => {
             const createFormFields = [ ...config.formFields, { name: 'password', label: 'Initial Password', type: 'password', required: true } ];
             openFormModal('Add New Staff Member', createFormFields, async (formData) => {
+                // --- THIS IS THE FIX ---
+                const isMultiPart = formData instanceof FormData;
+                const password = isMultiPart ? formData.get('password') : formData.password;
+                // --- END OF FIX ---
+
                 const newStaffProfile = await apiService.create('staffs', formData);
                 if (newStaffProfile?.id) {
-                    // --- FIX: Pass the profileImage from the created profile to the new user record ---
                     await apiService.create('users', {
-                        name: newStaffProfile.name, email: newStaffProfile.email, password: formData.password,
-                        role: newStaffProfile.jobTitle, staffId: newStaffProfile.id,
+                        name: newStaffProfile.name, 
+                        email: newStaffProfile.email, 
+                        password: password, // Use the safely retrieved password
+                        role: newStaffProfile.jobTitle, 
+                        staffId: newStaffProfile.id,
                         profileImage: newStaffProfile.profileImage || null
                     });
-                    // --- END OF FIX ---
                     showToast('Staff member added successfully!', 'success');
                     renderStaffPage();
-                } else { showToast('Failed to create staff profile.', 'error'); }
+                } else { 
+                    showToast('Failed to create staff profile.', 'error'); 
+                }
             });
         },
         customHeader: `<button id="bulk-insert-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"><i class="fas fa-file-import"></i> Bulk Insert</button>`,

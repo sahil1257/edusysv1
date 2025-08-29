@@ -233,7 +233,7 @@ const createAdvancedSearchPanel = () => {
         renderTeacherList(teachersInDept);
     };
 
-
+    // --- THIS IS THE MODIFIED FUNCTION ---
     const openTeacherForm = (teacherData = null) => {
         const isEditing = !!teacherData;
         const title = isEditing ? `Edit Teacher Profile` : 'Add New Teacher';
@@ -248,7 +248,12 @@ const createAdvancedSearchPanel = () => {
         ];
         if (!isEditing) { formFields.push({ name: 'password', label: 'Initial Password', type: 'password', required: true }); }
 
-        const onSubmit = async (formData) => {          
+        const onSubmit = async (formData) => {
+            // --- THIS IS THE FIX ---
+            const isMultiPart = formData instanceof FormData;
+            const password = isMultiPart ? formData.get('password') : formData.password;
+            // --- END OF FIX ---
+            
             try {
                 if (isEditing) {
                     await apiService.update('teachers', teacherData.id, formData);
@@ -256,9 +261,17 @@ const createAdvancedSearchPanel = () => {
                 } else {
                     const newTeacher = await apiService.create('teachers', formData);
                     if (!newTeacher || !newTeacher.id) {
-                        showToast("Could not create teacher.", "error"); return;
+                        showToast("Could not create teacher profile.", "error"); return;
                     }
-                    await apiService.create('users', { name: newTeacher.name, email: newTeacher.email, password: formData.password, role: 'Teacher', teacherId: newTeacher.id });
+                    // Use the safely retrieved password
+                    await apiService.create('users', { 
+                        name: newTeacher.name, 
+                        email: newTeacher.email, 
+                        password: password, 
+                        role: 'Teacher', 
+                        teacherId: newTeacher.id,
+                        profileImage: newTeacher.profileImage || null
+                    });
                     showToast('Teacher added successfully!', 'success');
                 }
                 await store.refresh('teachers');
@@ -266,7 +279,7 @@ const createAdvancedSearchPanel = () => {
                 closeAnimatedModal(ui.modal);
                 mainRender();
             } catch (error) {
-                showToast("Operation failed.", "error"); console.error("Form submission error:", error);
+                showToast("Operation failed. Please check the console.", "error"); console.error("Form submission error:", error);
             }
         };
 
@@ -286,11 +299,7 @@ const createAdvancedSearchPanel = () => {
         openFormModal(title, formFields, onSubmit, teacherData || {}, onDelete, modalConfig);
     };
 
-
-
     const insertDocumentForTeachers = () => { openBulkInsertModal('teachers', 'Teachers', ['name', 'email', 'password', 'contact', 'departmentName'], { name: "Dr. Jane Smith", email: "jane@school.com", password: "password123", contact: "555-1234", departmentName: "CSE" }); };
-
-
 
     const renderDepartmentView = () => {
         const deptData = allDepartments.map(dept => ({ ...dept, teacherCount: allTeachers.filter(t => t.departmentId?.id === dept.id).length }));
